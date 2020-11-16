@@ -1,16 +1,31 @@
-# This is a sample Python script.
+import sys
+from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow
+from PyQt5.QtCore import Qt
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+# Encapsulate main window in a class
+class MainWindow(QMainWindow):
+    def __init__(self, *args, **kwargs):
+        super(MainWindow, self).__init__(*args, **kwargs)
 
+        # Set window title
+        self.setWindowTitle("Intelligent Stock Trader")
+        self.setMinimumSize(1024, 512)
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+        # "Hello World!" label
+        label = QLabel("Hello World!")
+        label.setAlignment(Qt.AlignCenter)
+        self.setCentralWidget(label) # Make label take up entire window
 
+# Create application.
+app = QApplication(sys.argv) # sys.argv are commandline arguments passed in when the program runs.
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+# Create main window.
+window = MainWindow()
+window.show()
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+# Start the main program loop.
+print("Program starting.")
+app.exec_()
+
+# Program terminating.
+print("Program termininating.")
