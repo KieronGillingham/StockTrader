@@ -73,7 +73,6 @@ class MainWindow(QMainWindow):
         # UI
         layout = QVBoxLayout()
 
-        """
         # Counter
         self.counter = 0
         self.label = QLabel()
@@ -85,30 +84,20 @@ class MainWindow(QMainWindow):
         self.timer.start()
 
         # Button
-        button = QPushButton("DANGER!")
-        button.pressed.connect(self.oh_no)
+        button = QPushButton("Reload.")
+        button.pressed.connect(self.reloadData)
         layout.addWidget(button)
+
+
+
+        self.mainChart = MplCanvas(self)
+
+        layout.addWidget(self.mainChart)
 
         # Widget
         widget = QWidget()
         widget.setLayout(layout)
         self.setCentralWidget(widget)
-        """
-
-        assets = ['TSLA', 'MSFT', 'FB']
-        yahoo_financials = YahooFinancials(assets)
-        data = yahoo_financials.get_historical_price_data(start_date='2019-01-01',
-                                                          end_date='2019-12-31',
-                                                          time_interval='weekly')
-        prices_df = pd.DataFrame({
-            a: {x['formatted_date']: x['adjclose'] for x in data[a]['prices']} for a in assets
-        })
-        prices_df.plot()
-
-
-        sc = MplCanvas(self, width=5, height=4, dpi=100)
-        sc.axes.plot(prices_df)
-        self.setCentralWidget(sc)
 
         # Treadpool
         self.threadpool = QThreadPool()
@@ -125,9 +114,27 @@ class MainWindow(QMainWindow):
         print("%d%% done" % n)
 
     def execute_this_fn(self, progress_callback):
+
+        # Clear existing chart
+        self.mainChart.axes.cla()
+        self.mainChart.draw()
+
+        assets = ['TSLA', 'MSFT', 'FB']
+        yahoo_financials = YahooFinancials(assets)
+        data = yahoo_financials.get_historical_price_data(start_date='2019-01-01',
+                                                          end_date='2019-12-31',
+                                                          time_interval='monthly')
+        prices_df = pd.DataFrame({
+            a: {x['formatted_date']: x['adjclose'] for x in data[a]['prices']} for a in assets
+        })
+
         for n in range(0, 5):
             time.sleep(1)
             progress_callback.emit(n*100/4)
+
+        # Draw new chart
+        self.mainChart.axes.plot(prices_df)
+        self.mainChart.draw()
 
         return "Done."
 
@@ -137,7 +144,7 @@ class MainWindow(QMainWindow):
     def thread_complete(self):
         print("THREAD COMPLETE!")
 
-    def oh_no(self):
+    def reloadData(self):
         # Pass the function to execute
         worker = Worker(self.execute_this_fn) # Any other args, kwargs are passed to the run function
         worker.signals.result.connect(self.print_output)
@@ -146,18 +153,7 @@ class MainWindow(QMainWindow):
 
 
 
-        """
-        assets = ['TSLA', 'MSFT', 'FB']
-        yahoo_financials = YahooFinancials(assets)
-        data = yahoo_financials.get_historical_price_data(start_date='2019-01-01',
-                                                          end_date='2019-12-31',
-                                                          time_interval='weekly')
-        prices_df = pd.DataFrame({
-            a: {x['formatted_date']: x['adjclose'] for x in data[a]['prices']} for a in assets
-        })
-        prices_df.plot()
-        """
-
+        #self.mainChart.axes.draw()
 
         # Execute
         self.threadpool.start(worker)
