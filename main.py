@@ -1,5 +1,5 @@
 import sys, time, traceback, requests
-from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QPushButton, QWidget
+from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget
 from PyQt5.QtCore import Qt, QTimer, QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
 import matplotlib
 matplotlib.use('Qt5Agg')
@@ -7,6 +7,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from yahoofinancials import YahooFinancials
 import pandas as pd
+from pandas import read_csv
 
 # Signals
 class WorkerSignals(QObject):
@@ -71,32 +72,42 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1024, 512)
 
         # UI
-        layout = QVBoxLayout()
+        self.main_layout = QVBoxLayout()
 
         # Counter
         self.counter = 0
         self.label = QLabel()
-        layout.addWidget(self.label)
+        self.main_layout.addWidget(self.label)
         # Timer for counter
         self.timer = QTimer()
         self.timer.setInterval(1000)
         self.timer.timeout.connect(self.recurring_timer)
         self.timer.start()
 
-        # Button
-        button = QPushButton("Reload.")
+        # Buttons
+        buttons = QHBoxLayout()
+
+        button = QPushButton("Reload from Yahoo Finance")
         button.pressed.connect(self.reloadData)
-        layout.addWidget(button)
+        buttons.addWidget(button)
 
+        button = QPushButton("Reload from file")
+        button.pressed.connect(self.reload_from_file)
+        buttons.addWidget(button)
 
+        button = QPushButton("Clear Chart")
+        button.pressed.connect(self.clear_chart)
+        buttons.addWidget(button)
 
+        self.main_layout.addLayout(buttons)
+
+        # Main chart
         self.mainChart = MplCanvas(self)
-
-        layout.addWidget(self.mainChart)
+        self.main_layout.addWidget(self.mainChart)
 
         # Widget
         widget = QWidget()
-        widget.setLayout(layout)
+        widget.setLayout(self.main_layout)
         self.setCentralWidget(widget)
 
         # Treadpool
@@ -105,6 +116,11 @@ class MainWindow(QMainWindow):
 
         # Display the main window
         self.show()
+
+    def clear_chart(self):
+        # Clear existing chart
+        self.mainChart.axes.cla()
+        self.mainChart.draw()
 
     def recurring_timer(self):
         self.counter += 1
@@ -119,7 +135,7 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.cla()
         self.mainChart.draw()
 
-        assets = ['TSLA', 'MSFT', 'FB']
+        assets = ['TSLA', 'MSFT', 'III']
         yahoo_financials = YahooFinancials(assets)
         data = yahoo_financials.get_historical_price_data(start_date='2019-01-01',
                                                           end_date='2019-12-31',
@@ -127,6 +143,10 @@ class MainWindow(QMainWindow):
         prices_df = pd.DataFrame({
             a: {x['formatted_date']: x['adjclose'] for x in data[a]['prices']} for a in assets
         })
+
+        print(prices_df)
+
+        prices_df.to_csv("data/localstorage.csv")
 
         for n in range(0, 5):
             time.sleep(1)
@@ -137,6 +157,15 @@ class MainWindow(QMainWindow):
         self.mainChart.draw()
 
         return "Done."
+
+    def load_from_csv(self, progress_callback):
+        prices_df = read_csv("data/localstorage.csv", index_col=0)
+
+        print(prices_df)
+
+        # Draw new chart
+        self.mainChart.axes.plot(prices_df)
+        self.mainChart.draw()
 
     def print_output(self, s):
         print(s)
@@ -154,6 +183,16 @@ class MainWindow(QMainWindow):
 
 
         #self.mainChart.axes.draw()
+
+        # Execute
+        self.threadpool.start(worker)
+
+    def reload_from_file(self):
+        # Pass the function to execute
+        worker = Worker(self.load_from_csv)  # Any other args, kwargs are passed to the run function
+        worker.signals.finished.connect(self.thread_complete)
+
+        # self.mainChart.axes.draw()
 
         # Execute
         self.threadpool.start(worker)
