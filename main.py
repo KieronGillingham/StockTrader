@@ -135,22 +135,18 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.cla()
         self.mainChart.draw()
 
-        assets = ['TSLA', 'MSFT', 'III']
-        yahoo_financials = YahooFinancials(assets)
+        companies = read_csv("data/50stocks.csv", header=0)
+        labels = companies['Symbol'].head(10).tolist()
+
+        yahoo_financials = YahooFinancials(labels)
         data = yahoo_financials.get_historical_price_data(start_date='2019-01-01',
                                                           end_date='2019-12-31',
                                                           time_interval='monthly')
         prices_df = pd.DataFrame({
-            a: {x['formatted_date']: x['adjclose'] for x in data[a]['prices']} for a in assets
+            a: {x['formatted_date']: x['adjclose'] for x in data[a]['prices']} for a in labels
         })
 
-        print(prices_df)
-
         prices_df.to_csv("data/localstorage.csv")
-
-        for n in range(0, 5):
-            time.sleep(1)
-            progress_callback.emit(n*100/4)
 
         # Draw new chart
         self.mainChart.axes.plot(prices_df)
