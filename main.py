@@ -1,13 +1,23 @@
-import sys, time, traceback, requests
+# General
+import sys, time, traceback
+
+# GUI
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget
 from PyQt5.QtCore import Qt, QTimer, QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
+
+# Yahoo Finance
+from yahoofinancials import YahooFinancials
+
+# Plotting
 import matplotlib
-matplotlib.use('Qt5Agg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
-from yahoofinancials import YahooFinancials
+matplotlib.use('Qt5Agg')
+
+# Data manipulation and machine learning
 import pandas as pd
 from pandas import read_csv
+from sklearn.linear_model import LinearRegression
 
 # Signals
 class WorkerSignals(QObject):
@@ -129,13 +139,11 @@ class MainWindow(QMainWindow):
     def progress_fn(self, n):
         print("%d%% done" % n)
 
-    def execute_this_fn(self, progress_callback):
+    def load_from_yahoo_finance(self, progress_callback):
+        self.clear_chart()
 
-        # Clear existing chart
-        self.mainChart.axes.cla()
-        self.mainChart.draw()
+        companies = read_csv("data/stocksymbols.csv", header=0)
 
-        companies = read_csv("data/50stocks.csv", header=0)
         labels = companies['Symbol'].head(10).tolist()
 
         yahoo_financials = YahooFinancials(labels)
@@ -171,7 +179,7 @@ class MainWindow(QMainWindow):
 
     def reloadData(self):
         # Pass the function to execute
-        worker = Worker(self.execute_this_fn) # Any other args, kwargs are passed to the run function
+        worker = Worker(self.load_from_yahoo_finance) # Any other args, kwargs are passed to the run function
         worker.signals.result.connect(self.print_output)
         worker.signals.finished.connect(self.thread_complete)
         worker.signals.progress.connect(self.progress_fn)
