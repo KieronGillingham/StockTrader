@@ -1,5 +1,5 @@
 # General
-import sys, time, traceback
+import sys, datetime, time, traceback
 
 # GUI
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget
@@ -19,6 +19,7 @@ matplotlib.use('Qt5Agg')
 
 # Data manipulation and machine learning
 import pandas as pd
+import numpy as np
 from pandas import read_csv
 from sklearn.linear_model import LinearRegression
 
@@ -95,12 +96,19 @@ class MainWindow(QMainWindow):
     def progress_fn(self, n):
         print("%d%% done" % n)
 
+    def draw_chart(self, data):
+        self.mainChart.axes.plot(data)
+        self.mainChart.axes.legend(data.columns.tolist())
+        self.mainChart.draw()
+
     def load_from_yahoo_finance(self, progress_callback):
         self.clear_chart()
 
         companies = read_csv("data/stocksymbols.csv", header=0)
 
-        labels = companies['Symbol'].head(10).tolist()
+        labels = companies['Symbol'].head(3).tolist()
+
+        print(labels)
 
         yahoo_financials = YahooFinancials(labels)
         data = yahoo_financials.get_historical_price_data(start_date='2019-01-01',
@@ -113,19 +121,40 @@ class MainWindow(QMainWindow):
         prices_df.to_csv("data/localstorage.csv")
 
         # Draw new chart
-        self.mainChart.axes.plot(prices_df)
-        self.mainChart.draw()
+        self.draw_chart(prices_df)
 
         return "Done."
 
     def load_from_csv(self, progress_callback):
         prices_df = read_csv("data/localstorage.csv", index_col=0)
 
+        predictions = []
+
+        x = prices_df.index.values
+        for i in range(0, len(x)):
+            x[i] = datetime.date.fromisoformat(x[i]).toordinal()
+
+        x = x.reshape(-1,1)
+        for i in range(0, len(prices_df.columns)):
+
+            y = prices_df.iloc[:, i].values
+            print(x)
+            print(y)
+
+            model = LinearRegression()
+            model.fit(x, y)
+            prediction = model.predict([[737424]])
+            predictions.append(prediction[0])
+
+        print(predictions)
+        pred_df = pd.DataFrame(np.reshape(predictions, (1,-1)), columns=prices_df.columns, index=[737424])
+        print(pred_df)
+        prices_df = prices_df.append(pred_df)
+
         print(prices_df)
 
         # Draw new chart
-        self.mainChart.axes.plot(prices_df)
-        self.mainChart.draw()
+        self.draw_chart(prices_df)
 
     def print_output(self, s):
         print(s)
