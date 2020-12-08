@@ -1,5 +1,6 @@
 # General
 import sys, datetime, time, traceback
+from typing import List
 
 # GUI
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget
@@ -96,9 +97,20 @@ class MainWindow(QMainWindow):
     def progress_fn(self, n):
         print("%d%% done" % n)
 
-    def draw_chart(self, data):
-        self.mainChart.axes.plot(data)
+    def draw_chart(self, data: List, prediction: List = None):
+        self.clear_chart()
+
+        p = self.mainChart.axes.plot(data)
         self.mainChart.axes.legend(data.columns.tolist())
+
+
+        if prediction is not None:
+            if len(data.columns) != len(prediction.columns):
+                raise Exception('Historical and prediction lists are not equal length.')
+
+            for i in range (0, len(prediction.columns)):
+                self.mainChart.axes.plot(prediction.iloc(axis=1)[i], linestyle='--', color=p[i].get_color())
+
         self.mainChart.draw()
 
     def load_from_yahoo_finance(self, progress_callback):
@@ -138,23 +150,16 @@ class MainWindow(QMainWindow):
         for i in range(0, len(prices_df.columns)):
 
             y = prices_df.iloc[:, i].values
-            print(x)
-            print(y)
-
             model = LinearRegression()
             model.fit(x, y)
             prediction = model.predict([[737424]])
             predictions.append(prediction[0])
 
-        print(predictions)
         pred_df = pd.DataFrame(np.reshape(predictions, (1,-1)), columns=prices_df.columns, index=[737424])
-        print(pred_df)
-        prices_df = prices_df.append(pred_df)
-
-        print(prices_df)
+        pred_df = pred_df.append(prices_df.tail(1))
 
         # Draw new chart
-        self.draw_chart(prices_df)
+        self.draw_chart(prices_df, pred_df)
 
     def print_output(self, s):
         print(s)
