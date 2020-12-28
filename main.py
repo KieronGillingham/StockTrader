@@ -3,7 +3,7 @@ import sys, datetime, time, traceback
 from typing import List
 
 # GUI
-from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget
+from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox
 from PyQt5.QtCore import Qt, QTimer, QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
 
 # Threading
@@ -67,11 +67,27 @@ class MainWindow(QMainWindow):
         button.pressed.connect(self.clear_chart)
         buttons.addWidget(button)
 
+        form = QHBoxLayout()
+
+        wid = QLabel("Invest Amount (Stocks):")
+        form.addWidget(wid)
+        self.stock_invested = QSpinBox()
+        form.addWidget(self.stock_invested)
+
+        wid = QPushButton("Predict Profit")
+        wid.pressed.connect(self.calculate)
+        form.addWidget(wid)
+
+        wid = QLabel("")
+        form.addWidget(wid)
+
         self.main_layout.addLayout(buttons)
+        self.main_layout.addLayout(form)
 
         # Main chart
         self.mainChart = MplCanvas(self)
         self.main_layout.addWidget(self.mainChart)
+        self.prices_df = None
 
         # Widget
         widget = QWidget()
@@ -103,7 +119,6 @@ class MainWindow(QMainWindow):
         p = self.mainChart.axes.plot(data)
         self.mainChart.axes.legend(data.columns.tolist())
 
-
         if prediction is not None:
             if len(data.columns) != len(prediction.columns):
                 raise Exception('Historical and prediction lists are not equal length.')
@@ -116,50 +131,52 @@ class MainWindow(QMainWindow):
     def load_from_yahoo_finance(self, progress_callback):
         self.clear_chart()
 
-        companies = read_csv("data/stocksymbols.csv", header=0)
+        companies = read_csv("data/stocksymbols.csv", header=0)#, quotechar='"')
 
-        labels = companies['Symbol'].head(3).tolist()
+        labels = companies['Symbol'].tolist()
 
         print(labels)
+
+        return "Done."
 
         yahoo_financials = YahooFinancials(labels)
         data = yahoo_financials.get_historical_price_data(start_date='2019-01-01',
                                                           end_date='2019-12-31',
                                                           time_interval='monthly')
-        prices_df = pd.DataFrame({
+        self.prices_df = pd.DataFrame({
             a: {x['formatted_date']: x['adjclose'] for x in data[a]['prices']} for a in labels
         })
 
-        prices_df.to_csv("data/localstorage.csv")
+        self.prices_df.to_csv("data/localstorage.csv")
 
         # Draw new chart
-        self.draw_chart(prices_df)
+        self.draw_chart(self.prices_df)
 
         return "Done."
 
     def load_from_csv(self, progress_callback):
-        prices_df = read_csv("data/localstorage.csv", index_col=0)
+        self.prices_df = read_csv("data/localstorage.csv", index_col=0)
 
         predictions = []
 
-        x = prices_df.index.values
+        x = self.prices_df.index.values
         for i in range(0, len(x)):
             x[i] = datetime.date.fromisoformat(x[i]).toordinal()
 
         x = x.reshape(-1,1)
-        for i in range(0, len(prices_df.columns)):
+        for i in range(0, len(self.prices_df.columns)):
 
-            y = prices_df.iloc[:, i].values
+            y = self.prices_df.iloc[:, i].values
             model = LinearRegression()
             model.fit(x, y)
             prediction = model.predict([[737424]])
             predictions.append(prediction[0])
 
-        pred_df = pd.DataFrame(np.reshape(predictions, (1,-1)), columns=prices_df.columns, index=[737424])
-        pred_df = pred_df.append(prices_df.tail(1))
+        pred_df = pd.DataFrame(np.reshape(predictions, (1,-1)), columns=self.prices_df.columns, index=[737424])
+        pred_df = pred_df.append(self.prices_df.tail(1))
 
         # Draw new chart
-        self.draw_chart(prices_df, pred_df)
+        self.draw_chart(self.prices_df, pred_df)
 
     def print_output(self, s):
         print(s)
@@ -184,6 +201,20 @@ class MainWindow(QMainWindow):
 
         # Execute
         self.threadpool.start(worker)
+
+    def calculate(self, stock=None, stock_count=0):
+
+        stock = "TYT.L"
+        stock_count = self.stock_invested.value()
+
+        print(self.prices_df[stock][737364])
+
+        buy_cost = self.prices_df[stock][737364] * stock_count
+        sell_cost = self.prices_df[stock][737394] * stock_count
+        profit = sell_cost - buy_cost
+
+        print(buy_cost, sell_cost, profit)
+
 
 # Create application.
 app = QApplication(sys.argv) # sys.argv are commandline arguments passed in when the program runs.
