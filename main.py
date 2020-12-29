@@ -113,6 +113,8 @@ class MainWindow(QMainWindow):
         self.threadpool = QThreadPool()
         print("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
 
+        self.reload_from_file()
+
         # Display the main window
         self.show()
 
@@ -171,8 +173,13 @@ class MainWindow(QMainWindow):
 
         return "Done."
 
-    def load_from_csv(self, progress_callback):
-        self.prices_df = read_csv("data/localstorage.csv", index_col=0)
+    def load_from_csv(self, progress_callback, localfile="data/localstorage.csv"):
+        print("Loading from local file")
+        try:
+            self.prices_df = read_csv(localfile, index_col=0)
+        except FileNotFoundError:
+            print("Local storage file '%s' not found" % localfile)
+            return
 
         predictions = []
 
