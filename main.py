@@ -1,10 +1,10 @@
 # General
-import sys, datetime, time, traceback
+import sys, datetime
 from typing import List
 
 # GUI
-from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox
-from PyQt5.QtCore import Qt, QTimer, QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
+from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, QComboBox
+from PyQt5.QtCore import QTimer, QThreadPool
 
 # Threading
 from stockthreading import Worker
@@ -25,73 +25,88 @@ from pandas import read_csv
 from sklearn.linear_model import LinearRegression
 
 class MplCanvas(FigureCanvasQTAgg):
+    """PyQt canvas for MatPlotLib graphs"""
+
     def __init__(self, parent=None, width=5, height=4, dpi=100):
         fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = fig.add_subplot(111)
         super(MplCanvas, self).__init__(fig)
 
-# Encapsulate main window in a class
 class MainWindow(QMainWindow):
+    """ Main window of application"""
+
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
 
-        # Set window title
+        # Set window appearance
         self.setWindowTitle("Intelligent Stock Trader")
         self.setMinimumSize(1024, 512)
 
-        # UI
-        self.main_layout = QVBoxLayout()
+        # Initalise layouts
+        self.vbox_main = QVBoxLayout()
+        self.hbox_title = QHBoxLayout()
+        self.hbox_main = QHBoxLayout()
+        self.vbox_sidebar = QVBoxLayout()
+        self.vbox_chartmenu = QVBoxLayout()
+        self.vbox_prediction = QVBoxLayout()
+        self.vbox_data = QVBoxLayout()
 
-        # Counter
-        self.counter = 0
-        self.label = QLabel()
-        self.main_layout.addWidget(self.label)
-        # Timer for counter
-        self.timer = QTimer()
-        self.timer.setInterval(1000)
-        self.timer.timeout.connect(self.recurring_timer)
-        self.timer.start()
+        # Counter for debugging
+        # self.counter = 0
+        # self.counter_label = QLabel()
+        # self.vbox_main.addWidget(self.counter_label)
+        # # Timer for counter
+        # self.timer = QTimer()
+        # self.timer.setInterval(1000)
+        # self.timer.timeout.connect(self.recurring_timer)
+        # self.timer.start()
 
-        # Buttons
-        buttons = QHBoxLayout()
+        wid = QLabel("Stock Trader")
+        self.hbox_title.addWidget(wid)
 
-        button = QPushButton("Reload from Yahoo Finance")
-        button.pressed.connect(self.reloadData)
-        buttons.addWidget(button)
+        wid = QComboBox()
+        self.vbox_chartmenu.addWidget(wid)
 
-        button = QPushButton("Reload from file")
-        button.pressed.connect(self.reload_from_file)
-        buttons.addWidget(button)
+        wid = QPushButton("Reload from Yahoo Finance")
+        wid.pressed.connect(self.reloadData)
+        self.vbox_data.addWidget(wid)
 
-        button = QPushButton("Clear Chart")
-        button.pressed.connect(self.clear_chart)
-        buttons.addWidget(button)
+        wid = QPushButton("Reload from file")
+        wid.pressed.connect(self.reload_from_file)
+        self.vbox_data.addWidget(wid)
 
-        form = QHBoxLayout()
+        wid = QPushButton("Clear Chart")
+        wid.pressed.connect(self.clear_chart)
+        self.vbox_data.addWidget(wid)
 
         wid = QLabel("Invest Amount (Stocks):")
-        form.addWidget(wid)
+        self.vbox_prediction.addWidget(wid)
         self.stock_invested = QSpinBox()
-        form.addWidget(self.stock_invested)
+        self.vbox_prediction.addWidget(self.stock_invested)
 
         wid = QPushButton("Predict Profit")
         wid.pressed.connect(self.calculate)
-        form.addWidget(wid)
+        self.vbox_prediction.addWidget(wid)
 
         wid = QLabel("")
-        form.addWidget(wid)
-
-        self.main_layout.addLayout(buttons)
-        self.main_layout.addLayout(form)
+        self.vbox_prediction.addWidget(wid)
 
         # Main chart
         self.mainChart = MplCanvas(self)
-        self.main_layout.addWidget(self.mainChart)
+        self.hbox_main.addWidget(self.mainChart, 5)
         self.prices_df = None
 
-        # Widget
+        # Set layout hierarchy
+        self.vbox_main.addLayout(self.hbox_title, 1)
+        self.vbox_main.addLayout(self.hbox_main, 5)
+        self.hbox_main.addLayout(self.vbox_sidebar, 1)
+        self.vbox_sidebar.addLayout(self.vbox_chartmenu, 1)
+        self.vbox_sidebar.addLayout(self.vbox_prediction, 2)
+        self.vbox_sidebar.addLayout(self.vbox_data, 1)
+
+        # Display widgets
         widget = QWidget()
-        widget.setLayout(self.main_layout)
+        widget.setLayout(self.vbox_main)
         self.setCentralWidget(widget)
 
         # Treadpool
@@ -106,9 +121,11 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.cla()
         self.mainChart.draw()
 
-    def recurring_timer(self):
-        self.counter += 1
-        self.label.setText("Counter: %d" % self.counter)
+    # def recurring_timer(self):
+    #     """Increment counter"""
+    #
+    #     self.counter += 1
+    #     self.counter_label.setText("Counter: %d" % self.counter)
 
     def progress_fn(self, n):
         print("%d%% done" % n)
