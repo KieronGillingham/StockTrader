@@ -24,6 +24,8 @@ import numpy as np
 from pandas import read_csv
 from sklearn.linear_model import LinearRegression
 
+stocks = [("TYT.L", "Toyota"), ("ULVR.L","Unilever PLC"), ("BP-A.L","BP p.l.c.")]
+
 class MplCanvas(FigureCanvasQTAgg):
     """PyQt canvas for MatPlotLib graphs"""
 
@@ -65,6 +67,7 @@ class MainWindow(QMainWindow):
         self.hbox_title.addWidget(wid)
 
         wid = QComboBox()
+        wid.addItems(x[1] for x in stocks)
         self.vbox_chartmenu.addWidget(wid)
 
         wid = QPushButton("Reload from Yahoo Finance")
