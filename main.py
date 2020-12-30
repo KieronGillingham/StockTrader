@@ -10,7 +10,7 @@ from PyQt5.QtCore import QTimer, QThreadPool
 from stockthreading import Worker
 
 # Yahoo Finance
-from yahoofinancials import YahooFinancials
+from stockdata import StockData
 
 # Plotting
 import matplotlib
@@ -25,6 +25,8 @@ from pandas import read_csv
 from sklearn.linear_model import LinearRegression
 
 stocks = [("TYT.L", "Toyota"), ("ULVR.L","Unilever PLC"), ("BP-A.L","BP p.l.c.")]
+
+stock_data = StockData()
 
 class MplCanvas(FigureCanvasQTAgg):
     """PyQt canvas for MatPlotLib graphs"""
@@ -71,7 +73,7 @@ class MainWindow(QMainWindow):
         self.vbox_chartmenu.addWidget(wid)
 
         wid = QPushButton("Reload from Yahoo Finance")
-        wid.pressed.connect(self.reloadData)
+        wid.pressed.connect(self.load_data_yf)
         self.vbox_data.addWidget(wid)
 
         wid = QPushButton("Reload from file")
@@ -116,8 +118,6 @@ class MainWindow(QMainWindow):
         self.threadpool = QThreadPool()
         print("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
 
-        self.reload_from_file()
-
         # Display the main window
         self.show()
 
@@ -126,14 +126,35 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.cla()
         self.mainChart.draw()
 
+    def load_data_yf(self):
+        print(stock_data.get_yahoo_finance_data(start_date='2019-12-01', end_date='2020-12-01'))
+
+    def data_loaded(self):
+        self.clear_chart()
+        data = stock_data.prices_df
+        print(data)
+        self.mainChart.axes.plot(data)
+        self.mainChart.axes.legend(data.columns.tolist())
+        self.mainChart.draw()
+
+    def reload_from_file(self):
+        # Pass the function to execute
+        worker = Worker(stock_data.load_from_csv)  # Any other args, kwargs are passed to the run function
+        worker.signals.finished.connect(self.data_loaded)
+
+        # Execute
+        return self.threadpool.start(worker)
+
+
+
+    def calculate(self):
+        stock_data.calculate()
+
     # def recurring_timer(self):
     #     """Increment counter"""
     #
     #     self.counter += 1
     #     self.counter_label.setText("Counter: %d" % self.counter)
-
-    def progress_fn(self, n):
-        print("%d%% done" % n)
 
     def draw_chart(self, data: List, prediction: List = None):
         self.clear_chart()
@@ -149,99 +170,6 @@ class MainWindow(QMainWindow):
                 self.mainChart.axes.plot(prediction.iloc(axis=1)[i], linestyle='--', color=p[i].get_color())
 
         self.mainChart.draw()
-
-    def load_from_yahoo_finance(self, progress_callback):
-        self.clear_chart()
-
-        companies = read_csv("data/stocksymbols.csv", header=0)#, quotechar='"')
-
-        labels = companies['Symbol'].tolist()
-
-        print(labels)
-
-        return "Done."
-
-        yahoo_financials = YahooFinancials(labels)
-        data = yahoo_financials.get_historical_price_data(start_date='2019-01-01',
-                                                          end_date='2019-12-31',
-                                                          time_interval='monthly')
-        self.prices_df = pd.DataFrame({
-            a: {x['formatted_date']: x['adjclose'] for x in data[a]['prices']} for a in labels
-        })
-
-        self.prices_df.to_csv("data/localstorage.csv")
-
-        # Draw new chart
-        self.draw_chart(self.prices_df)
-
-        return "Done."
-
-    def load_from_csv(self, progress_callback, localfile="data/localstorage.csv"):
-        print("Loading from local file")
-        try:
-            self.prices_df = read_csv(localfile, index_col=0)
-        except FileNotFoundError:
-            print("Local storage file '%s' not found" % localfile)
-            return
-
-        predictions = []
-
-        x = self.prices_df.index.values
-        for i in range(0, len(x)):
-            x[i] = datetime.date.fromisoformat(x[i]).toordinal()
-
-        x = x.reshape(-1,1)
-        for i in range(0, len(self.prices_df.columns)):
-
-            y = self.prices_df.iloc[:, i].values
-            model = LinearRegression()
-            model.fit(x, y)
-            prediction = model.predict([[737424]])
-            predictions.append(prediction[0])
-
-        pred_df = pd.DataFrame(np.reshape(predictions, (1,-1)), columns=self.prices_df.columns, index=[737424])
-        pred_df = pred_df.append(self.prices_df.tail(1))
-
-        # Draw new chart
-        self.draw_chart(self.prices_df, pred_df)
-
-    def print_output(self, s):
-        print(s)
-
-    def thread_complete(self):
-        print("THREAD COMPLETE!")
-
-    def reloadData(self):
-        # Pass the function to execute
-        worker = Worker(self.load_from_yahoo_finance) # Any other args, kwargs are passed to the run function
-        worker.signals.result.connect(self.print_output)
-        worker.signals.finished.connect(self.thread_complete)
-        worker.signals.progress.connect(self.progress_fn)
-
-        # Execute
-        self.threadpool.start(worker)
-
-    def reload_from_file(self):
-        # Pass the function to execute
-        worker = Worker(self.load_from_csv)  # Any other args, kwargs are passed to the run function
-        worker.signals.finished.connect(self.thread_complete)
-
-        # Execute
-        self.threadpool.start(worker)
-
-    def calculate(self, stock=None, stock_count=0):
-
-        stock = "TYT.L"
-        stock_count = self.stock_invested.value()
-
-        print(self.prices_df[stock][737364])
-
-        buy_cost = self.prices_df[stock][737364] * stock_count
-        sell_cost = self.prices_df[stock][737394] * stock_count
-        profit = sell_cost - buy_cost
-
-        print(buy_cost, sell_cost, profit)
-
 
 # Create application.
 app = QApplication(sys.argv) # sys.argv are commandline arguments passed in when the program runs.
