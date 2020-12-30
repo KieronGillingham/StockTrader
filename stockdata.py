@@ -50,9 +50,7 @@ class StockData():
             a: {x['formatted_date']: x['adjclose'] for x in data[a]['prices']} for a in stocksymbols
         })
         self.prices_df.columns = stocks["Name"][:5]
-
-        self.save_to_csv()
-
+        
         return "Done."
 
     def get_yahoo_finance_data(self, start_date=None, end_date=None, time_interval='monthly', stocksymbols=None):

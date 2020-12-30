@@ -70,11 +70,15 @@ class MainWindow(QMainWindow):
         self.vbox_chartmenu.addWidget(self.filter_combobox)
 
         wid = QPushButton("Reload from Yahoo Finance")
-        wid.pressed.connect(self.load_data_yf)
+        wid.pressed.connect(self.load_data_from_yf)
         self.vbox_data.addWidget(wid)
 
-        wid = QPushButton("Reload from file")
-        wid.pressed.connect(self.reload_from_file)
+        wid = QPushButton("Save data to file")
+        wid.pressed.connect(self.save_data_to_file)
+        self.vbox_data.addWidget(wid)
+
+        wid = QPushButton("Load data from file")
+        wid.pressed.connect(self.load_data_from_file)
         self.vbox_data.addWidget(wid)
 
         wid = QPushButton("Clear Chart")
@@ -124,7 +128,7 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.cla()
         self.mainChart.draw()
 
-    def load_data_yf(self):
+    def load_data_from_yf(self):
         print(stock_data.get_yahoo_finance_data(start_date='2019-12-01', end_date='2020-12-01'))
 
     def data_loaded(self):
@@ -137,7 +141,7 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.legend(data.columns.tolist())
         self.mainChart.draw()
 
-    def reload_from_file(self):
+    def load_data_from_file(self):
         # Pass the function to execute
         worker = Worker(stock_data.load_from_csv)  # Any other args, kwargs are passed to the run function
         worker.signals.finished.connect(self.data_loaded)
@@ -171,6 +175,9 @@ class MainWindow(QMainWindow):
 
         self.mainChart.draw()
 
+
+    def save_data_to_file(self):
+        stock_data.save_to_csv()
 # Create application.
 app = QApplication(sys.argv) # sys.argv are commandline arguments passed in when the program runs.
 
