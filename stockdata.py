@@ -13,8 +13,6 @@ import pandas as pd
 import numpy as np
 from pandas import read_csv
 
-stocks = [("TYT.L", "Toyota"), ("ULVR.L","Unilever PLC"), ("BP-A.L","BP p.l.c.")]
-
 class StockData():
     def __init__(self, *args, **kwargs):
         # Threadpool
@@ -31,15 +29,15 @@ class StockData():
     def progress_fn(self, n):
         print("%d%% done" % n)
 
-    def load_stocksymbols(self):
+    def load_stocks(self):
         companies = read_csv("data/stocksymbols.csv", header=0)
-        return companies['Symbol'].tolist()
+        return companies
 
     def load_data_from_yahoo_finance(self, progress_callback, start_date=None, end_date=None, stocksymbols=None, time_interval='monthly'):
         print("Load data from yahoo finance")
         if stocksymbols == None:
-            stocksymbols = self.load_stocksymbols()
-            stocksymbols = stocksymbols[:5]
+            stocks = self.load_stocks()
+            stocksymbols = stocks["Symbol"][:5]
 
         print(stocksymbols)
         print(start_date, end_date, time_interval)
@@ -51,8 +49,9 @@ class StockData():
         self.prices_df = pd.DataFrame({
             a: {x['formatted_date']: x['adjclose'] for x in data[a]['prices']} for a in stocksymbols
         })
+        self.prices_df.columns = stocks["Name"][:5]
 
-        self.prices_df.to_csv("data/localstorage.csv")
+        self.save_to_csv()
 
         return "Done."
 
@@ -101,3 +100,6 @@ class StockData():
         profit = sell_cost - buy_cost
 
         print(buy_cost, sell_cost, profit)
+
+    def save_to_csv(self):
+        self.prices_df.to_csv("data/localstorage.csv")

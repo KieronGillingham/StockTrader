@@ -24,8 +24,6 @@ import numpy as np
 from pandas import read_csv
 from sklearn.linear_model import LinearRegression
 
-stocks = [("TYT.L", "Toyota"), ("ULVR.L","Unilever PLC"), ("BP-A.L","BP p.l.c.")]
-
 stock_data = StockData()
 
 class MplCanvas(FigureCanvasQTAgg):
@@ -68,9 +66,8 @@ class MainWindow(QMainWindow):
         wid = QLabel("Stock Trader")
         self.hbox_title.addWidget(wid)
 
-        wid = QComboBox()
-        wid.addItems(x[1] for x in stocks)
-        self.vbox_chartmenu.addWidget(wid)
+        self.filter_combobox = QComboBox()
+        self.vbox_chartmenu.addWidget(self.filter_combobox)
 
         wid = QPushButton("Reload from Yahoo Finance")
         wid.pressed.connect(self.load_data_yf)
@@ -123,6 +120,7 @@ class MainWindow(QMainWindow):
 
     def clear_chart(self):
         # Clear existing chart
+        self.filter_combobox.clear()
         self.mainChart.axes.cla()
         self.mainChart.draw()
 
@@ -133,6 +131,8 @@ class MainWindow(QMainWindow):
         self.clear_chart()
         data = stock_data.prices_df
         print(data)
+        #wid.addItems(x[1] for x in stocks)
+        self.filter_combobox.addItems(data.columns.tolist())
         self.mainChart.axes.plot(data)
         self.mainChart.axes.legend(data.columns.tolist())
         self.mainChart.draw()
