@@ -1,5 +1,6 @@
 # General
-import sys, datetime
+import sys
+from datetime import date
 from typing import List
 
 # GUI
@@ -67,6 +68,7 @@ class MainWindow(QMainWindow):
         self.hbox_title.addWidget(wid)
 
         self.filter_combobox = QComboBox()
+        self.filter_combobox.currentIndexChanged.connect(self.draw_single_stock)
         self.vbox_chartmenu.addWidget(self.filter_combobox)
 
         wid = QPushButton("Reload from Yahoo Finance")
@@ -139,7 +141,20 @@ class MainWindow(QMainWindow):
         self.filter_combobox.addItems(data.columns.tolist())
         self.mainChart.axes.plot(data)
         self.mainChart.axes.legend(data.columns.tolist())
+
+        #self.mainChart.axes.xticks(ticks=locs, labels=list(date.fromordinal(d).toisoformat() for d in labels))
         self.mainChart.draw()
+        labels = self.mainChart.axes.get_xticklabels()
+        print(labels)
+        for t in labels:
+            print(t.get_text())
+            print(int(t.get_text()))
+            tdate = date.fromordinal(int(t.get_text()))
+            t.set_text(tdate)
+        print(labels)
+        self.mainChart.axes.set_xticklabels(labels)
+        self.mainChart.draw()
+
 
     def load_data_from_file(self):
         # Pass the function to execute
@@ -149,7 +164,8 @@ class MainWindow(QMainWindow):
         # Execute
         return self.threadpool.start(worker)
 
-
+    def draw_single_stock(self, value):
+        print(self.filter_combobox.itemData(value), ",", self.filter_combobox.itemText(value))
 
     def calculate(self):
         stock_data.calculate()
