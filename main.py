@@ -130,9 +130,6 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.cla()
         self.mainChart.draw()
 
-    def load_data_from_yf(self):
-        print(stock_data.get_yahoo_finance_data(start_date='2019-12-01', end_date='2020-12-01'))
-
     def data_loaded(self):
         self.clear_chart()
         data = stock_data.prices_df
@@ -145,16 +142,13 @@ class MainWindow(QMainWindow):
         #self.mainChart.axes.xticks(ticks=locs, labels=list(date.fromordinal(d).toisoformat() for d in labels))
         self.mainChart.draw()
         labels = self.mainChart.axes.get_xticklabels()
-        print(labels)
         for t in labels:
             print(t.get_text())
             print(int(t.get_text()))
             tdate = date.fromordinal(int(t.get_text()))
             t.set_text(tdate)
-        print(labels)
         self.mainChart.axes.set_xticklabels(labels)
         self.mainChart.draw()
-
 
     def load_data_from_file(self):
         # Pass the function to execute
