@@ -130,25 +130,32 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.cla()
         self.mainChart.draw()
 
-    def data_loaded(self):
-        self.clear_chart()
-        data = stock_data.prices_df
-        print(data)
-        #wid.addItems(x[1] for x in stocks)
-        self.filter_combobox.addItems(data.columns.tolist())
-        self.mainChart.axes.plot(data)
-        self.mainChart.axes.legend(data.columns.tolist())
+        print(stock_data.prices_df)
 
-        #self.mainChart.axes.xticks(ticks=locs, labels=list(date.fromordinal(d).toisoformat() for d in labels))
-        self.mainChart.draw()
-        labels = self.mainChart.axes.get_xticklabels()
-        for t in labels:
-            print(t.get_text())
-            print(int(t.get_text()))
-            tdate = date.fromordinal(int(t.get_text()))
-            t.set_text(tdate)
-        self.mainChart.axes.set_xticklabels(labels)
-        self.mainChart.draw()
+
+    def data_loaded(self):
+        print("Data loaded")
+        self.clear_chart()
+        # data = stock_data.prices_df
+        # self.filter_combobox.addItems(data.columns.tolist())
+        # self.mainChart.axes.plot(data)
+        # self.mainChart.axes.legend(data.columns.tolist(), bbox_to_anchor=(0.95, 1), loc='upper left')
+        #
+        # self.mainChart.axes.grid(True)
+        # #self.mainChart.axes.xticks(ticks=locs, labels=list(date.fromordinal(d).toisoformat() for d in labels))
+        # self.mainChart.draw()
+        #
+        # labels = self.mainChart.axes.get_xticklabels()
+        #
+        # for t in labels:
+        #     tdate = date.fromordinal(int(t.get_text()))
+        #     t.set_text(tdate)
+        # self.mainChart.axes.set_xticklabels(labels)
+        # self.mainChart.draw()
+
+    def load_data_from_yf(self):
+        # Pass the function to execute
+        stock_data.get_yahoo_finance_data(start_date='2020-12-01', end_date='2021-03-01', time_interval='daily', on_finish=self.data_loaded)  # Any other args, kwargs are passed to the run function
 
     def load_data_from_file(self):
         # Pass the function to execute

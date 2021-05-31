@@ -12,7 +12,10 @@ from pandas import read_csv
 # Date
 from datetime import date
 
-class StockData():
+
+
+
+class StockData:
     def __init__(self, *args, **kwargs):
         # Threadpool
         self.threadpool = QThreadPool()
@@ -35,7 +38,6 @@ class StockData():
         stocksymbols = read_csv("data/stocksymbols.csv", header=0)
         self.stockdict = {}
         for row in stocksymbols.values:
-            print("row", row)
             self.stockdict[row[1]] = row[0]
         return self.stockdict
 
@@ -55,21 +57,33 @@ class StockData():
                                                           end_date=end_date,
                                                           time_interval=time_interval)
 
+        self.prices_df = None
+        for symbol in stocksymbols:
+            stock_data = data[symbol] # Get stock data using the symbol for that stock
+            prices = stock_data['prices'] # Get price data for given stock
 
+            # Format price dict into dataframe with column headings: '[symbol]_[field]'
+            df = pd.DataFrame.from_records(prices, index='date', exclude=['formatted_date'])
+            df.columns = (symbol + "_" + field for field in df.columns)
 
-        self.prices_df = pd.DataFrame(
-        {
-            name: {date.fromisoformat(val['formatted_date']).toordinal(): val['adjclose'] for val in data[stocks[name]]['prices'] } for name in stocknames
-        })
+            # Create or join to master dataframe
+            if self.prices_df is None:
+                self.prices_df = df
+            else:
+                self.prices_df = pd.concat([self.prices_df, df], axis=1)
 
         return "Done."
 
-    def get_yahoo_finance_data(self, start_date=None, end_date=None, time_interval='monthly', stocksymbols=None):
+    def get_yahoo_finance_data(self, start_date=None, end_date=None, time_interval='monthly', stocksymbols=None, on_finish=None):
         # Pass the function to execute
         worker = Worker(self.load_data_from_yahoo_finance, start_date=start_date, end_date=end_date, time_interval=time_interval, stocksymbols=stocksymbols) # Any other args, kwargs are passed to the run function
-        worker.signals.result.connect(self.print_output)
-        worker.signals.finished.connect(self.thread_complete)
-        worker.signals.progress.connect(self.progress_fn)
+
+        # Connect on_finish method to signal
+        if on_finish is not None:
+            worker.signals.finished.connect(on_finish)
+        
+        #worker.signals.result.connect(self.print_output)
+        #worker.signals.progress.connect(self.progress_fn)
 
         # Execute
         self.threadpool.start(worker)
@@ -87,15 +101,15 @@ class StockData():
     def thread_complete(self):
         print("THREAD COMPLETE!")
 
-    def reloadData(self):
-        # Pass the function to execute
-        worker = Worker(self.load_from_yahoo_finance) # Any other args, kwargs are passed to the run function
-        worker.signals.result.connect(self.print_output)
-        worker.signals.finished.connect(self.data_loaded)
-        worker.signals.progress.connect(self.progress_fn)
-
-        # Execute
-        self.threadpool.start(worker)
+    # def reloadData(self):
+    #     # Pass the function to execute
+    #     worker = Worker(self.load_from_yahoo_finance) # Any other args, kwargs are passed to the run function
+    #     worker.signals.result.connect(self.print_output)
+    #     worker.signals.finished.connect(self.data_loaded)
+    #     worker.signals.progress.connect(self.progress_fn)
+    #
+    #     # Execute
+    #     self.threadpool.start(worker)
 
     def calculate(self, stock=None, stock_count=0):
         stock = "TYT.L"

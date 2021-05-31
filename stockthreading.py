@@ -49,6 +49,7 @@ class Worker(QRunnable):
         else:
             self.signals.result.emit(result)  # Return the result of the processing
         finally:
+            print("Worker finished")
             self.signals.finished.emit()  # Done
 #
 # # Encapsulate main window in a class
