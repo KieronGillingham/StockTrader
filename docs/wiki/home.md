@@ -20,6 +20,12 @@ TBC
 # Design and Implementation
 TBC
 
+## Use Cases
+![Use case diagram](https://github.com/KieronGillingham/StockTrader/blob/main/docs/UseCases.png)
+
+## Wireframes
+![User interface wireframe diagram](https://github.com/KieronGillingham/StockTrader/blob/main/docs/UIWireframes.png)
+
 ## Technologies and Libraries
 - Python
 - scikit-learn
