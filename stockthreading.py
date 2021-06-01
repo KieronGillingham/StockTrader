@@ -9,7 +9,7 @@ class WorkerSignals(QObject):
     finished = pyqtSignal()  # When completed
     error = pyqtSignal(tuple)  # Tuple (exctype, value, traceback.format_exc() )
     result = pyqtSignal(object)  # Data returned
-    progress = pyqtSignal(int) # % progress
+    progress = pyqtSignal(int) # Percentage progress
 
 class Worker(QRunnable):
     """ Worker thread
@@ -35,9 +35,7 @@ class Worker(QRunnable):
 
     @pyqtSlot()
     def run(self):
-        '''
-        Initialise the runner function with passed args, kwargs.
-        '''
+        """Initialise the runner function with passed args, kwargs."""
 
         # Retrieve args/kwargs here; and fire processing using them
         try:
@@ -51,41 +49,3 @@ class Worker(QRunnable):
         finally:
             print("Worker finished")
             self.signals.finished.emit()  # Done
-#
-# # Encapsulate main window in a class
-# class MainWindow(QMainWindow):
-#     def __init__(self, *args, **kwargs):
-#         # Treadpool
-#         self.threadpool = QThreadPool()
-#         print("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
-#
-#     def progress_fn(self, n):
-#         print("%d%% done" % n)
-#
-#     def load_from_yahoo_finance(self, progress_callback):
-#         return "Done."
-#
-#     def load_from_csv(self, progress_callback):
-#         return
-#
-#     def print_output(self, s):
-#         print(s)
-#
-#     def thread_complete(self):
-#         print("THREAD COMPLETE!")
-#
-#     def reloadData(self):
-#         # Pass the function to execute
-#         worker = Worker(self.load_from_yahoo_finance) # Any other args, kwargs are passed to the run function
-#         worker.signals.result.connect(self.print_output)
-#         worker.signals.finished.connect(self.thread_complete)
-#         worker.signals.progress.connect(self.progress_fn)
-#
-#         self.threadpool.start(worker)
-#
-#     def reload_from_file(self):
-#         # Pass the function to execute
-#         worker = Worker(self.load_from_csv)  # Any other args, kwargs are passed to the run function
-#         worker.signals.finished.connect(self.thread_complete)
-#
-#         self.threadpool.start(worker)

@@ -29,7 +29,7 @@ class StockData:
     #     self.counter_label.setText("Counter: %d" % self.counter)
 
     def get_symbol(self, name):
-        return self.stocksymbols[name]
+        return self.stockdict[name]
 
     def progress_fn(self, n):
         print("%d%% done" % n)
@@ -45,11 +45,11 @@ class StockData:
         print("Load data from yahoo finance")
         if stocksymbols == None:
             stocks = self.load_stocks()
-            stocknames = list(stocks.keys())[:5] # First 5 only
+            self.stocknames = list(stocks.keys())[:5] # First 5 only
             stocksymbols = list(stocks.values())[:5]
 
         print("Stockdict =", stocks)
-        print("Selected Stocks =", stocknames, stocksymbols)
+        print("Selected Stocks =", self.stocknames, stocksymbols)
         print(start_date, end_date, time_interval)
 
         yahoo_financials = YahooFinancials(stocksymbols)
@@ -81,7 +81,7 @@ class StockData:
         # Connect on_finish method to signal
         if on_finish is not None:
             worker.signals.finished.connect(on_finish)
-        
+
         #worker.signals.result.connect(self.print_output)
         #worker.signals.progress.connect(self.progress_fn)
 
@@ -92,6 +92,8 @@ class StockData:
         print("Loading from local file")
         try:
             self.prices_df = read_csv(localfile, index_col=0)
+            stocks = self.load_stocks()
+            self.stocknames = list(stocks.keys())[:5]  # First 5 only
         except FileNotFoundError:
             print("Local storage file '%s' not found" % localfile)
 
@@ -122,6 +124,16 @@ class StockData:
         profit = sell_cost - buy_cost
 
         print(buy_cost, sell_cost, profit)
+
+    def get_stocknames(self, symbols=None):
+        """
+        Look up stock names from symbols.
+
+        :param symbols: The symbols to look up. Returns all stock names in loaded data if symbols == None.
+        :return: List of stock names.
+        """
+
+        return self.stocknames
 
     def save_to_csv(self):
         self.prices_df.to_csv("data/localstorage.csv")

@@ -24,6 +24,7 @@ import pandas as pd
 import numpy as np
 from pandas import read_csv
 from sklearn.linear_model import LinearRegression
+from sklearn.neural_network import MLPRegressor
 
 stock_data = StockData()
 
@@ -54,7 +55,7 @@ class MainWindow(QMainWindow):
         self.vbox_prediction = QVBoxLayout()
         self.vbox_data = QVBoxLayout()
 
-        # Counter for debugging
+        # # Counter for debugging
         # self.counter = 0
         # self.counter_label = QLabel()
         # self.vbox_main.addWidget(self.counter_label)
@@ -130,14 +131,15 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.cla()
         self.mainChart.draw()
 
-        print(stock_data.prices_df)
-
-
     def data_loaded(self):
         print("Data loaded")
         self.clear_chart()
-        # data = stock_data.prices_df
-        # self.filter_combobox.addItems(data.columns.tolist())
+
+        data = stock_data.prices_df
+
+        for n in stock_data.get_stocknames():
+            self.filter_combobox.addItem(n, userData=stock_data.get_symbol(n))
+
         # self.mainChart.axes.plot(data)
         # self.mainChart.axes.legend(data.columns.tolist(), bbox_to_anchor=(0.95, 1), loc='upper left')
         #
@@ -166,7 +168,8 @@ class MainWindow(QMainWindow):
         return self.threadpool.start(worker)
 
     def draw_single_stock(self, value):
-        print(self.filter_combobox.itemData(value), ",", self.filter_combobox.itemText(value))
+        #print(self.filter_combobox.itemText(value))
+        print(f"{self.filter_combobox.itemText(value)} ({self.filter_combobox.itemData(value)}) selected.")
 
     def calculate(self):
         stock_data.calculate()
