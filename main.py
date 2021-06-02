@@ -140,20 +140,23 @@ class MainWindow(QMainWindow):
         for n in stock_data.get_stocknames():
             self.filter_combobox.addItem(n, userData=stock_data.get_symbol(n))
 
-        # self.mainChart.axes.plot(data)
-        # self.mainChart.axes.legend(data.columns.tolist(), bbox_to_anchor=(0.95, 1), loc='upper left')
+        self.mainChart.axes.plot(data.iloc[:,:4])
+        self.mainChart.axes.legend(data.columns.tolist(), loc='upper left')
         #
-        # self.mainChart.axes.grid(True)
+
+        self.mainChart.axes.grid(True)
         # #self.mainChart.axes.xticks(ticks=locs, labels=list(date.fromordinal(d).toisoformat() for d in labels))
-        # self.mainChart.draw()
+
         #
-        # labels = self.mainChart.axes.get_xticklabels()
-        #
-        # for t in labels:
-        #     tdate = date.fromordinal(int(t.get_text()))
-        #     t.set_text(tdate)
-        # self.mainChart.axes.set_xticklabels(labels)
-        # self.mainChart.draw()
+        self.mainChart.draw()
+
+        labels = self.mainChart.axes.get_xticklabels()
+        for t in labels:
+            val = t.get_position()[0] # Get raw numerical value of the label
+            tdate = date.fromtimestamp(val)
+            t.set_text(tdate.strftime("%d/%m"))
+        self.mainChart.axes.set_xticklabels(labels)
+        self.mainChart.draw()
 
     def load_data_from_yf(self):
         # Pass the function to execute
