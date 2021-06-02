@@ -69,7 +69,7 @@ class MainWindow(QMainWindow):
         self.hbox_title.addWidget(wid)
 
         self.filter_combobox = QComboBox()
-        self.filter_combobox.currentIndexChanged.connect(self.draw_single_stock)
+        self.filter_combobox.currentIndexChanged.connect(self.filter_changed)
         self.vbox_chartmenu.addWidget(self.filter_combobox)
 
         wid = QPushButton("Reload from Yahoo Finance")
@@ -127,36 +127,39 @@ class MainWindow(QMainWindow):
 
     def clear_chart(self):
         # Clear existing chart
-        self.filter_combobox.clear()
         self.mainChart.axes.cla()
+        self.mainChart.draw()
+
+    def draw_single_stock(self, stocksymbol):
+
+        self.clear_chart()
+        data = stock_data.prices_df.filter(like=stocksymbol)
+
+        self.mainChart.axes.plot(data)
+        self.mainChart.axes.legend(data.columns.tolist(), loc='upper left')
+
+        self.mainChart.axes.grid(True)
+        self.mainChart.draw()
+
+        labels = self.mainChart.axes.get_xticklabels()
+        for t in labels:
+            val = t.get_position()[0]  # Get raw numerical value of the label
+            tdate = date.fromtimestamp(val)
+            t.set_text(tdate.strftime("%d/%m"))
+        self.mainChart.axes.set_xticklabels(labels)
         self.mainChart.draw()
 
     def data_loaded(self):
         print("Data loaded")
         self.clear_chart()
-
+        self.filter_combobox.clear()
         data = stock_data.prices_df
-
         for n in stock_data.get_stocknames():
             self.filter_combobox.addItem(n, userData=stock_data.get_symbol(n))
 
-        self.mainChart.axes.plot(data.iloc[:,:4])
-        self.mainChart.axes.legend(data.columns.tolist(), loc='upper left')
-        #
 
-        self.mainChart.axes.grid(True)
-        # #self.mainChart.axes.xticks(ticks=locs, labels=list(date.fromordinal(d).toisoformat() for d in labels))
 
-        #
-        self.mainChart.draw()
-
-        labels = self.mainChart.axes.get_xticklabels()
-        for t in labels:
-            val = t.get_position()[0] # Get raw numerical value of the label
-            tdate = date.fromtimestamp(val)
-            t.set_text(tdate.strftime("%d/%m"))
-        self.mainChart.axes.set_xticklabels(labels)
-        self.mainChart.draw()
+        self.draw_single_stock("TYT.L")
 
     def load_data_from_yf(self):
         # Pass the function to execute
@@ -170,9 +173,12 @@ class MainWindow(QMainWindow):
         # Execute
         return self.threadpool.start(worker)
 
-    def draw_single_stock(self, value):
-        #print(self.filter_combobox.itemText(value))
+    def filter_changed(self, value):
         print(f"{self.filter_combobox.itemText(value)} ({self.filter_combobox.itemData(value)}) selected.")
+        if self.filter_combobox.itemData(value) is not None:
+            self.draw_single_stock(self.filter_combobox.itemData(value))
+
+
 
     def calculate(self):
         stock_data.calculate()
