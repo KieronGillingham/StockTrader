@@ -8,6 +8,7 @@ from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBo
 from PyQt5.QtCore import QTimer, QThreadPool
 
 # Threading
+from learningmodel import LearningModel
 from stockthreading import Worker
 
 # Yahoo Finance
@@ -27,6 +28,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.neural_network import MLPRegressor
 
 stock_data = StockData()
+learning_model = LearningModel()
 
 class MplCanvas(FigureCanvasQTAgg):
     """PyQt canvas for MatPlotLib graphs"""
@@ -94,7 +96,7 @@ class MainWindow(QMainWindow):
         self.vbox_prediction.addWidget(self.stock_invested)
 
         wid = QPushButton("Predict Profit")
-        wid.pressed.connect(self.calculate)
+        wid.pressed.connect(self.make_prediction)
         self.vbox_prediction.addWidget(wid)
 
         wid = QLabel("")
@@ -157,7 +159,7 @@ class MainWindow(QMainWindow):
         for n in stock_data.get_stocknames():
             self.filter_combobox.addItem(n, userData=stock_data.get_symbol(n))
 
-
+        learning_model.set_data(data)
 
         self.draw_single_stock("TYT.L")
 
@@ -178,10 +180,10 @@ class MainWindow(QMainWindow):
         if self.filter_combobox.itemData(value) is not None:
             self.draw_single_stock(self.filter_combobox.itemData(value))
 
-
-
     def calculate(self):
-        stock_data.calculate()
+        # TODO: Fix implementation
+        pass
+        # stock_data.calculate()
 
     # def recurring_timer(self):
     #     """Increment counter"""
@@ -207,6 +209,11 @@ class MainWindow(QMainWindow):
 
     def save_data_to_file(self):
         stock_data.save_to_csv()
+
+    def make_prediction(self):
+        learning_model.predict()
+        # self.draw_single_stock(self.filter_combobox.itemData())
+
 # Create application.
 app = QApplication(sys.argv) # sys.argv are commandline arguments passed in when the program runs.
 
