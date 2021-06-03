@@ -8,22 +8,31 @@ import numpy as np
 from sklearn.linear_model import LinearRegression
 
 class LearningModel():
+
+    PERIODS = {
+        "NEXTDAY": 86400,  # 60*60*24 (One day)
+        "NEXTWEEK": 604800,  # 60*60*24 * 7
+        "NEXTTWOWEEK": 1209600, # 60*60*24 * 14
+        "NEXTMONTH": 2592000  # 60*60*24 * 30
+    }
+
     def __init__(self, data=None, *args, **kwargs):
         self.data = data
 
-    def predict(self, prediction_time='NEXTDAY'):
+    def predict(self, prediction_period='NEXTWEEK'):
         predictions = []
 
-        if not self._check_data():
+        if prediction_period not in self.PERIODS:
+            print(f"Prediction period '{prediction_period}' not recognised. Must be one of: {[*self.PERIODS]}")
+            return
+        elif not self._check_data():
             print("Error with prediction model.")
             return
 
         latest_date_stamp = self.data.index.max()
-        # latest_date = date.fromtimestamp(latest_date_stamp)
-        # prediction_date = latest_date + timedelta(days=1)
-        prediction_date_stamp = latest_date_stamp + (60*60*24)
+        prediction_date_stamp = latest_date_stamp + self.PERIODS[prediction_period]
         print(f"Latest date: {latest_date_stamp} / {date.fromtimestamp(latest_date_stamp)}")
-        print(f"Prediction date ({prediction_time}): {prediction_date_stamp} / {date.fromtimestamp(prediction_date_stamp)}")
+        print(f"Prediction date ({prediction_period}): {prediction_date_stamp} / {date.fromtimestamp(prediction_date_stamp)}")
 
         y = self.data["TYT.L_close"].values
         x = np.array(self.data.index)
@@ -38,10 +47,11 @@ class LearningModel():
         prediction = model.predict([[latest_date_stamp]])
 
         print(f"{self.data['TYT.L_close'][latest_date_stamp]} -> {prediction[0]}")
-        #     predictions.append(prediction[0])
-        #
-        # pred_df = pd.DataFrame(np.reshape(predictions, (1, -1)), columns=self.prices_df.columns, index=[737424])
-        # pred_df = pred_df.append(self.prices_df.tail(1))
+
+        pred_df = pd.DataFrame([self.data["TYT.L_close"][latest_date_stamp],prediction[0]], columns=["TYT.L_close"], index=[latest_date_stamp, prediction_date_stamp])
+
+        return pred_df
+
 
     def set_data(self, data):
         if isinstance(data, pd.DataFrame):

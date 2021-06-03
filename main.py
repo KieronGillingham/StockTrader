@@ -132,12 +132,16 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.cla()
         self.mainChart.draw()
 
-    def draw_single_stock(self, stocksymbol):
+    def draw_single_stock(self, stocksymbol, prediction=None):
 
         self.clear_chart()
-        data = stock_data.prices_df.filter(like=stocksymbol)
+
+        data = stock_data.prices_df.filter(like=stocksymbol + "_close")
 
         self.mainChart.axes.plot(data)
+        if prediction is not None:
+            self.mainChart.axes.plot(prediction, linestyle='--')
+
         self.mainChart.axes.legend(data.columns.tolist(), loc='upper left')
 
         self.mainChart.axes.grid(True)
@@ -151,6 +155,22 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.set_xticklabels(labels)
         self.mainChart.draw()
 
+
+        # self.clear_chart()
+        #
+        #
+        # self.mainChart.axes.legend(data.columns.tolist())
+        #
+        # if prediction is not None:
+        #     if len(data.columns) != len(prediction.columns):
+        #         raise Exception('Historical and prediction lists are not equal length.')
+        #
+        #     for i in range(0, len(prediction.columns)):
+        #         self.mainChart.axes.plot(prediction.iloc(axis=1)[i], linestyle='--', color=p[i].get_color())
+        #
+        # self.mainChart.draw()
+
+
     def data_loaded(self):
         print("Data loaded")
         self.clear_chart()
@@ -161,7 +181,7 @@ class MainWindow(QMainWindow):
 
         learning_model.set_data(data)
 
-        self.draw_single_stock("TYT.L")
+        #self.draw_single_stock("TYT.L")
 
     def load_data_from_yf(self):
         # Pass the function to execute
@@ -211,8 +231,9 @@ class MainWindow(QMainWindow):
         stock_data.save_to_csv()
 
     def make_prediction(self):
-        learning_model.predict()
-        # self.draw_single_stock(self.filter_combobox.itemData())
+        predictions = learning_model.predict()
+        self.draw_single_stock("TYT.L", predictions)
+        # self.filter_combobox.itemData()
 
 # Create application.
 app = QApplication(sys.argv) # sys.argv are commandline arguments passed in when the program runs.
