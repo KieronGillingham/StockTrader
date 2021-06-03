@@ -232,8 +232,8 @@ class MainWindow(QMainWindow):
 
     def make_prediction(self):
         predictions = learning_model.predict()
-        self.draw_single_stock("TYT.L", predictions)
-        # self.filter_combobox.itemData()
+        self.draw_single_stock(self.filter_combobox.currentData(), predictions)
+
 
 # Create application.
 app = QApplication(sys.argv) # sys.argv are commandline arguments passed in when the program runs.
