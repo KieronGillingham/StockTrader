@@ -1,3 +1,9 @@
+# Logging
+import logging
+_logger = logging.getLogger(__name__)
+log_template = "[%(asctime)s] %(levelname)s %(threadName)s %(name)s: %(message)s"
+logging.basicConfig(level=logging.DEBUG, format=log_template, handlers= [logging.FileHandler("debug.log"), logging.StreamHandler()])
+
 # General
 import sys
 from datetime import date
@@ -8,24 +14,19 @@ from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBo
 from PyQt5.QtCore import QTimer, QThreadPool
 
 # Threading
-from learningmodel import LearningModel
 from stockthreading import Worker
 
-# Yahoo Finance
+# Stock data
 from stockdata import StockData
+
+# Machine learning
+from learningmodel import LearningModel
 
 # Plotting
 import matplotlib
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 matplotlib.use('Qt5Agg')
-
-# Data manipulation and machine learning
-import pandas as pd
-import numpy as np
-from pandas import read_csv
-from sklearn.linear_model import LinearRegression
-from sklearn.neural_network import MLPRegressor
 
 stock_data = StockData()
 learning_model = LearningModel()
@@ -122,7 +123,7 @@ class MainWindow(QMainWindow):
 
         # Treadpool
         self.threadpool = QThreadPool()
-        print("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
+        _logger.debug("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
 
         # Display the main window
         self.show()
@@ -172,7 +173,7 @@ class MainWindow(QMainWindow):
 
 
     def data_loaded(self):
-        print("Data loaded")
+        _logger.debug("Data loaded")
         self.clear_chart()
         self.filter_combobox.clear()
         data = stock_data.prices_df
@@ -196,7 +197,7 @@ class MainWindow(QMainWindow):
         return self.threadpool.start(worker)
 
     def filter_changed(self, value):
-        print(f"{self.filter_combobox.itemText(value)} ({self.filter_combobox.itemData(value)}) selected.")
+        _logger.debug(f"{self.filter_combobox.itemText(value)} ({self.filter_combobox.itemData(value)}) selected.")
         if self.filter_combobox.itemData(value) is not None:
             self.draw_single_stock(self.filter_combobox.itemData(value))
 
@@ -235,15 +236,20 @@ class MainWindow(QMainWindow):
         self.draw_single_stock(self.filter_combobox.currentData(), predictions)
 
 
-# Create application.
-app = QApplication(sys.argv) # sys.argv are commandline arguments passed in when the program runs.
 
-# Create and display the main window.
-window = MainWindow()
+if __name__ == '__main__':
 
-# Start the main program loop.
-print("Program starting.")
-app.exec_()
+    _logger.warning("Warning from main")
 
-# Program terminating.
-print("Program termininating.")
+    # Create application.
+    app = QApplication(sys.argv) # sys.argv are commandline arguments passed in when the program runs.
+
+    # Create and display the main window.
+    window = MainWindow()
+
+    # Start the main program loop.
+    _logger.info("Program starting.")
+    app.exec_()
+
+    # Program terminating.
+    _logger.info("Program termininating.")

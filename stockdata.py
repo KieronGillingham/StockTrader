@@ -1,3 +1,7 @@
+# Logging
+import logging
+_logger = logging.getLogger(__name__)
+
 # Threading
 from PyQt5.QtCore import QThreadPool
 from stockthreading import Worker
@@ -9,48 +13,40 @@ from yahoofinancials import YahooFinancials
 import pandas as pd
 from pandas import read_csv
 
-# Date
-from datetime import date
-
-
-
-
 class StockData:
-    def __init__(self, *args, **kwargs):
-        # Threadpool
-        self.threadpool = QThreadPool()
-        print("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
-        self.load_from_csv()
+    """
+    Class for accessing stock data from YahooFinance or a local CSV file.
+    # Threading is used to access data asynchronously.
+    """
 
-    # def recurring_timer(self):
-    #     """Increment counter"""
-    #
-    #     self.counter += 1
-    #     self.counter_label.setText("Counter: %d" % self.counter)
+    def __init__(self, csv_path="data/localstorage.csv", symbols_file="data/stocksymbols.csv", *args, **kwargs):
+        # Threading
+        self.threadpool = QThreadPool()
+        _logger.debug(f"Multithreading with maximum {self.threadpool.maxThreadCount()} threads")
+
+        # Load data from csv by default
+        self.load_from_csv(csv_path=csv_path, symbols_file=symbols_file)
 
     def get_symbol(self, name):
         return self.stockdict[name]
 
-    def progress_fn(self, n):
-        print("%d%% done" % n)
-
-    def load_stocks(self):
-        stocksymbols = read_csv("data/stocksymbols.csv", header=0)
+    def load_stocks(self, csv_path="data/stocksymbols.csv"):
+        stocksymbols = read_csv(csv_path, header=0)
         self.stockdict = {}
         for row in stocksymbols.values:
             self.stockdict[row[1]] = row[0]
         return self.stockdict
 
     def load_data_from_yahoo_finance(self, progress_callback, start_date=None, end_date=None, stocksymbols=None, time_interval='monthly'):
-        print("Load data from yahoo finance")
+        _logger.debug("Load data from yahoo finance")
         if stocksymbols == None:
             stocks = self.load_stocks()
             self.stocknames = list(stocks.keys())[:5] # First 5 only
             stocksymbols = list(stocks.values())[:5]
 
-        print("Stockdict =", stocks)
-        print("Selected Stocks =", self.stocknames, stocksymbols)
-        print(start_date, end_date, time_interval)
+        _logger.debug("Stockdict =", stocks)
+        _logger.debug("Selected Stocks =", self.stocknames, stocksymbols)
+        _logger.debug(start_date, end_date, time_interval)
 
         yahoo_financials = YahooFinancials(stocksymbols)
         data = yahoo_financials.get_historical_price_data(start_date=start_date,
@@ -88,20 +84,20 @@ class StockData:
         # Execute
         self.threadpool.start(worker)
 
-    def load_from_csv(self, progress_callback=None, localfile="data/localstorage.csv"):
-        print("Loading from local file")
+    def load_from_csv(self, progress_callback=None, csv_path="data/localstorage.csv", symbols_file="data/stocksymbols.csv"):
+        _logger.debug("Loading from local file")
         try:
-            self.prices_df = read_csv(localfile, index_col=0)
-            stocks = self.load_stocks()
+            self.prices_df = read_csv(csv_path, index_col=0)
+        except FileNotFoundError as ex:
+            _logger.error(f"Local storage file '{csv_path}' not found: {ex}")
+
+        try:
+            stocks = self.load_stocks(symbols_file)
             self.stocknames = list(stocks.keys())[:5]  # First 5 only
-        except FileNotFoundError:
-            print("Local storage file '%s' not found" % localfile)
-
-    def print_output(self, s):
-        print(s)
-
-    def thread_complete(self):
-        print("THREAD COMPLETE!")
+        except FileNotFoundError as ex:
+            _logger.error(f"Local storage file '{symbols_file}' not found: {ex}")
+    # def thread_complete(self):
+    #     print("THREAD COMPLETE!")
 
     # def reloadData(self):
     #     # Pass the function to execute
@@ -117,13 +113,13 @@ class StockData:
         stock = "TYT.L"
         stock_count = self.stock_invested.value()
 
-        print(self.prices_df[stock][737364])
+        _logger.debug(self.prices_df[stock][737364])
 
         buy_cost = self.prices_df[stock][737364] * stock_count
         sell_cost = self.prices_df[stock][737394] * stock_count
         profit = sell_cost - buy_cost
 
-        print(buy_cost, sell_cost, profit)
+        _logger.debug(buy_cost, sell_cost, profit)
 
     def get_stocknames(self, symbols=None):
         """
@@ -135,5 +131,11 @@ class StockData:
 
         return self.stocknames
 
-    def save_to_csv(self):
-        self.prices_df.to_csv("data/localstorage.csv")
+    def save_to_csv(self, csv_path="data/localstorage.csv"):
+        self.prices_df.to_csv(csv_path)
+
+    # def recurring_timer(self):
+    #     """Increment counter"""
+    #
+    #     self.counter += 1
+    #     self.counter_label.setText("Counter: %d" % self.counter)

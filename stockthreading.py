@@ -1,3 +1,7 @@
+# Logging
+import logging
+_logger = logging.getLogger(__name__)
+
 # General
 import sys, traceback
 
@@ -47,5 +51,9 @@ class Worker(QRunnable):
         else:
             self.signals.result.emit(result)  # Return the result of the processing
         finally:
-            print("Worker finished")
+            _logger.debug("Worker finished")
             self.signals.finished.emit()  # Done
+
+
+    def progress_fn(self, n):
+        _logger.debug("%d%% done" % n)
