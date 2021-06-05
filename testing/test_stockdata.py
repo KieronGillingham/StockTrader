@@ -39,6 +39,7 @@ class TestStockData(TestCase):
 
 
     def test_get_symbol(self):
+        _logger.info("Testing get_symbol()")
         self.stock_data.load_stocks(csv_path=self.test_symbols_file)
 
         for n in range(1,10):
@@ -46,7 +47,12 @@ class TestStockData(TestCase):
             self.assertEqual(self.stock_data.get_symbol(f"Equity{n}"), f"EQT.{n}")
 
     def test_load_stocks(self):
-        self.fail()
+        _logger.info("Testing load_stocks()")
+        self.stock_data.stockdict = None
+        self.assertEqual(self.stock_data.stockdict, None)
+
+        self.stock_data.load_stocks(csv_path=self.test_symbols_file)
+        self.assertNotEqual(self.stock_data.stockdict, None)
 
     def test_load_data_from_yahoo_finance(self):
         self.fail()
