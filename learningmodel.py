@@ -27,10 +27,7 @@ class LearningModel():
 
         if not isinstance(stock, str):
             raise TypeError("Stock must be a string of a stock symbol: I.E. GOOG")
-
-        predictions = []
-
-        if prediction_period not in self.PERIODS:
+        elif prediction_period not in self.PERIODS:
             _logger.error(f"Prediction period '{prediction_period}' not recognised. Must be one of: {[*self.PERIODS]}")
             return
         elif not self._check_data():
@@ -44,6 +41,12 @@ class LearningModel():
 
         _logger.debug(self.data)
 
+        #return self.linear_model_prediction(stock, prediction_date_stamp)
+        return self.mlp_model_prediction(stock, prediction_date_stamp)
+
+    def linear_model_prediction(self, stock, prediction_date_stamp):
+        latest_date_stamp = self.data.index.max()
+
         y = self.data[f"{stock}_close"].values
         x = np.array(self.data.index)
         _logger.debug(y)
@@ -54,11 +57,40 @@ class LearningModel():
         #     y = self.prices_df.iloc[:, i].values
         model = LinearRegression()
         model.fit(x, y)
-        prediction = model.predict([[latest_date_stamp]])
+        prediction = model.predict([[prediction_date_stamp]])
 
         _logger.debug(f"{self.data[f'{stock}_close'][latest_date_stamp]} -> {prediction[0]}")
 
         pred_df = pd.DataFrame([self.data[f"{stock}_close"][latest_date_stamp],prediction[0]], columns=[f"{stock}_close"], index=[latest_date_stamp, prediction_date_stamp])
+
+        return pred_df
+
+    def mlp_model_prediction(self, stock, prediction_date_stamp):
+        latest_date_stamp = self.data.index.max()
+
+        x = np.array(self.data.index)
+        y = self.data.values
+
+        _logger.debug(y)
+        _logger.debug(x)
+
+        x = x.reshape(-1, 1)
+        # for i in range(0, len(self.prices_df.columns)):
+        #     y = self.prices_df.iloc[:, i].values
+        model = MLPRegressor(random_state=98628, max_iter=500)
+        model.fit(x, y)
+        prediction = model.predict([[prediction_date_stamp]])
+
+        _logger.debug(f"{self.data.loc[latest_date_stamp].values} -> {prediction[0]}")
+
+        pred_df = pd.DataFrame([self.data.loc[latest_date_stamp].values, prediction[0]],
+                               columns=self.data.columns, index=[latest_date_stamp, prediction_date_stamp])
+
+        _logger.debug(pred_df)
+
+        pred_df = pred_df[f"{stock}_close"]
+
+        _logger.debug(pred_df)
 
         return pred_df
 
