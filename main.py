@@ -232,7 +232,7 @@ class MainWindow(QMainWindow):
         stock_data.save_to_csv()
 
     def make_prediction(self):
-        predictions = learning_model.predict()
+        predictions = learning_model.predict(self.filter_combobox.currentData())
         self.draw_single_stock(self.filter_combobox.currentData(), predictions)
 
 

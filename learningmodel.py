@@ -23,7 +23,11 @@ class LearningModel():
     def __init__(self, data=None, *args, **kwargs):
         self.data = data
 
-    def predict(self, prediction_period='NEXTWEEK'):
+    def predict(self, stock, prediction_period='NEXTWEEK'):
+
+        if not isinstance(stock, str):
+            raise TypeError("Stock must be a string of a stock symbol: I.E. GOOG")
+
         predictions = []
 
         if prediction_period not in self.PERIODS:
@@ -40,7 +44,7 @@ class LearningModel():
 
         _logger.debug(self.data)
 
-        y = self.data["TYT.L_close"].values
+        y = self.data[f"{stock}_close"].values
         x = np.array(self.data.index)
         _logger.debug(y)
         _logger.debug(x)
@@ -52,9 +56,9 @@ class LearningModel():
         model.fit(x, y)
         prediction = model.predict([[latest_date_stamp]])
 
-        _logger.debug(f"{self.data['TYT.L_close'][latest_date_stamp]} -> {prediction[0]}")
+        _logger.debug(f"{self.data[f'{stock}_close'][latest_date_stamp]} -> {prediction[0]}")
 
-        pred_df = pd.DataFrame([self.data["TYT.L_close"][latest_date_stamp],prediction[0]], columns=["TYT.L_close"], index=[latest_date_stamp, prediction_date_stamp])
+        pred_df = pd.DataFrame([self.data[f"{stock}_close"][latest_date_stamp],prediction[0]], columns=[f"{stock}_close"], index=[latest_date_stamp, prediction_date_stamp])
 
         return pred_df
 
