@@ -12,6 +12,7 @@ from typing import List
 # GUI
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, QComboBox
 from PyQt5.QtCore import QTimer, QThreadPool
+from landing import LandingWindow
 
 # Threading
 from stockthreading import Worker
@@ -200,6 +201,7 @@ class MainWindow(QMainWindow):
         _logger.debug(f"{self.filter_combobox.itemText(value)} ({self.filter_combobox.itemData(value)}) selected.")
         if self.filter_combobox.itemData(value) is not None:
             self.draw_single_stock(self.filter_combobox.itemData(value))
+            self.make_prediction()
 
     def calculate(self):
         # TODO: Fix implementation
@@ -239,8 +241,6 @@ class MainWindow(QMainWindow):
 
 if __name__ == '__main__':
 
-    _logger.warning("Warning from main")
-
     # Create application.
     app = QApplication(sys.argv) # sys.argv are commandline arguments passed in when the program runs.
 
@@ -250,6 +250,10 @@ if __name__ == '__main__':
     # Start the main program loop.
     _logger.info("Program starting.")
     app.exec_()
+
+    dlg = LandingWindow()
+    dlg.setWindowTitle("HELLO!")
+    dlg.exec()
 
     # Program terminating.
     _logger.info("Program termininating.")
