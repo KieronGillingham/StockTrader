@@ -10,7 +10,8 @@ from datetime import date
 from typing import List
 
 # GUI
-from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, QComboBox
+from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, \
+    QComboBox, QStackedWidget
 from PyQt5.QtCore import QTimer, QThreadPool
 from landing import LandingWindow
 
@@ -32,6 +33,8 @@ matplotlib.use('Qt5Agg')
 stock_data = StockData()
 learning_model = LearningModel()
 
+
+
 class MplCanvas(FigureCanvasQTAgg):
     """PyQt canvas for MatPlotLib graphs"""
 
@@ -46,18 +49,35 @@ class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
 
+        self.pages = {
+            "Login": 0,
+            "Chart": 1,
+            "Register": 2,
+            "Forecast": 3
+        }
+
+        self.change_page("Login")
+
         # Set window appearance
         self.setWindowTitle("Intelligent Stock Trader")
         self.setMinimumSize(1024, 512)
 
+        self.root = QStackedWidget()
+
         # Initalise layouts
-        self.vbox_main = QVBoxLayout()
+        self.vbox_pagechart = QVBoxLayout()
         self.hbox_title = QHBoxLayout()
         self.hbox_main = QHBoxLayout()
         self.vbox_sidebar = QVBoxLayout()
         self.vbox_chartmenu = QVBoxLayout()
         self.vbox_prediction = QVBoxLayout()
         self.vbox_data = QVBoxLayout()
+        self.vbox_pagelogin = QVBoxLayout()
+
+        login_button = QPushButton("Login")
+        login_button.released.connect(lambda: self.change_page("Chart"))
+
+        self.vbox_pagelogin.addWidget(login_button)
 
         # # Counter for debugging
         # self.counter = 0
@@ -71,6 +91,12 @@ class MainWindow(QMainWindow):
 
         wid = QLabel("Stock Trader")
         self.hbox_title.addWidget(wid)
+
+
+
+        logout_button = QPushButton("Log Out")
+        logout_button.released.connect(lambda: self.change_page("Login"))
+        self.hbox_title.addWidget(logout_button)
 
         self.filter_combobox = QComboBox()
         self.filter_combobox.currentIndexChanged.connect(self.filter_changed)
@@ -110,17 +136,32 @@ class MainWindow(QMainWindow):
         self.prices_df = None
 
         # Set layout hierarchy
-        self.vbox_main.addLayout(self.hbox_title, 1)
-        self.vbox_main.addLayout(self.hbox_main, 5)
+        self.vbox_pagechart.addLayout(self.hbox_title, 1)
+        self.vbox_pagechart.addLayout(self.hbox_main, 5)
         self.hbox_main.addLayout(self.vbox_sidebar, 1)
         self.vbox_sidebar.addLayout(self.vbox_chartmenu, 1)
         self.vbox_sidebar.addLayout(self.vbox_prediction, 2)
         self.vbox_sidebar.addLayout(self.vbox_data, 1)
 
-        # Display widgets
-        widget = QWidget()
-        widget.setLayout(self.vbox_main)
-        self.setCentralWidget(widget)
+        # Display pages
+        page = QWidget()
+        page.setLayout(self.vbox_pagechart)
+        self.root.insertWidget(self.pages["Chart"], page)
+
+        page = QWidget()
+        page.setLayout(self.vbox_pagelogin)
+        self.root.insertWidget(self.pages["Login"], page)
+
+        page = QWidget()
+        # page.setLayout(self.vbox_pagelogin)
+        self.root.insertWidget(self.pages["Register"], page)
+
+        page = QWidget()
+        # page.setLayout(self.vbox_pagelogin)
+        self.root.insertWidget(self.pages["Forecast"], page)
+
+        # Center pages
+        self.setCentralWidget(self.root)
 
         # Treadpool
         self.threadpool = QThreadPool()
@@ -128,6 +169,10 @@ class MainWindow(QMainWindow):
 
         # Display the main window
         self.show()
+
+    def login_dialog(self):
+        dlg = LandingWindow()
+        dlg.exec()
 
     def clear_chart(self):
         # Clear existing chart
@@ -241,7 +286,23 @@ class MainWindow(QMainWindow):
         predictions = learning_model.predict(self.filter_combobox.currentData())
         self.draw_single_stock(self.filter_combobox.currentData(), predictions)
 
+    def change_page(self, page):
+        try:
+            if isinstance(page, str):
+                try:
+                    index = self.pages[page]
+                except IndexError as ex:
+                    raise ValueError(f"Page not found: {page}")
+            elif isinstance(page, int):
+                index = page
+            else:
+                raise TypeError(f"Invalid page name or index: {page}")
 
+            _logger.debug(f"Switching to {page} (Index: {index}).")
+            self.root.setCurrentIndex(index)
+
+        except Exception as ex:
+            _logger.error("Invalid page to switch to.")
 
 if __name__ == '__main__':
 
@@ -254,10 +315,6 @@ if __name__ == '__main__':
     # Start the main program loop.
     _logger.info("Program starting.")
     app.exec_()
-
-    dlg = LandingWindow()
-    dlg.setWindowTitle("HELLO!")
-    dlg.exec()
 
     # Program terminating.
     _logger.info("Program termininating.")
