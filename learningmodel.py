@@ -25,6 +25,8 @@ class LearningModel():
 
     def predict(self, stock, prediction_period='NEXTWEEK'):
 
+        _logger.debug(self.data)
+
         if not isinstance(stock, str):
             raise TypeError("Stock must be a string of a stock symbol: I.E. GOOG")
         elif prediction_period not in self.PERIODS:
@@ -39,7 +41,7 @@ class LearningModel():
         _logger.debug(f"Latest date: {latest_date_stamp} / {date.fromtimestamp(latest_date_stamp)}")
         _logger.debug(f"Prediction date ({prediction_period}): {prediction_date_stamp} / {date.fromtimestamp(prediction_date_stamp)}")
 
-        _logger.debug(self.data)
+
 
         #return self.linear_model_prediction(stock, prediction_date_stamp)
         return self.mlp_model_prediction(stock, prediction_date_stamp)
@@ -69,14 +71,20 @@ class LearningModel():
         latest_date_stamp = self.data.index.max()
 
         x = np.array(self.data.index)
+        x = x.reshape(-1, 1)
+
         y = self.data.values
 
         _logger.debug(y)
         _logger.debug(x)
 
-        x = x.reshape(-1, 1)
-        # for i in range(0, len(self.prices_df.columns)):
-        #     y = self.prices_df.iloc[:, i].values
+        _logger.debug("Normalising (y)")
+
+        from sklearn.preprocessing import scale
+        scale(y, copy=False)
+
+        _logger.debug(y)
+
         model = MLPRegressor(random_state=98628, max_iter=500)
         model.fit(x, y)
         prediction = model.predict([[prediction_date_stamp]])

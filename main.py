@@ -178,10 +178,14 @@ class MainWindow(QMainWindow):
         self.clear_chart()
         self.filter_combobox.clear()
         data = stock_data.prices_df
+
+        if learning_model.set_data(data):
+            _logger.debug("Data setup complete.")
+
         for n in stock_data.get_stocknames():
             self.filter_combobox.addItem(n, userData=stock_data.get_symbol(n))
 
-        learning_model.set_data(data)
+
 
         #self.draw_single_stock("TYT.L")
 
