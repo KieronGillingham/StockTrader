@@ -13,7 +13,6 @@ from typing import List
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, \
     QComboBox, QStackedWidget
 from PyQt5.QtCore import QTimer, QThreadPool
-from landing import LandingWindow
 
 # Threading
 from stockthreading import Worker
@@ -48,15 +47,6 @@ class MainWindow(QMainWindow):
 
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
-
-        self.pages = {
-            "Login": 0,
-            "Chart": 1,
-            "Register": 2,
-            "Forecast": 3
-        }
-
-        self.change_page("Login")
 
         # Set window appearance
         self.setWindowTitle("Intelligent Stock Trader")
@@ -144,13 +134,34 @@ class MainWindow(QMainWindow):
         self.vbox_sidebar.addLayout(self.vbox_data, 1)
 
         # Display pages
+        self.pages = {
+            "Login": 0,
+            "Chart": 1,
+            "Register": 2,
+            "Forecast": 3
+        }
+
+        # Login page
+        page = QWidget()
+        page.setLayout(self.vbox_pagelogin)
+        self.root.insertWidget(self.pages["Login"], page)
+
+        wid = QLabel("Invest Amount (Stocks):")
+        self.vbox_prediction.addWidget(wid)
+        self.stock_invested = QSpinBox()
+        self.vbox_prediction.addWidget(self.stock_invested)
+
+        wid = QLabel("Invest Amount (Stocks):")
+        self.vbox_prediction.addWidget(wid)
+        self.stock_invested = QSpinBox()
+        self.vbox_prediction.addWidget(self.stock_invested)
+
+
         page = QWidget()
         page.setLayout(self.vbox_pagechart)
         self.root.insertWidget(self.pages["Chart"], page)
 
-        page = QWidget()
-        page.setLayout(self.vbox_pagelogin)
-        self.root.insertWidget(self.pages["Login"], page)
+
 
         page = QWidget()
         # page.setLayout(self.vbox_pagelogin)
@@ -163,16 +174,14 @@ class MainWindow(QMainWindow):
         # Center pages
         self.setCentralWidget(self.root)
 
+        self.change_page("Login")
+
         # Treadpool
         self.threadpool = QThreadPool()
         _logger.debug("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
 
         # Display the main window
         self.show()
-
-    def login_dialog(self):
-        dlg = LandingWindow()
-        dlg.exec()
 
     def clear_chart(self):
         # Clear existing chart
@@ -288,7 +297,9 @@ class MainWindow(QMainWindow):
 
     def change_page(self, page):
         try:
-            if isinstance(page, str):
+            if self.pages is False or self.pages is None:
+                _logger.warning("Trying to change page, but no pages set.")
+            elif isinstance(page, str):
                 try:
                     index = self.pages[page]
                 except IndexError as ex:
@@ -299,10 +310,13 @@ class MainWindow(QMainWindow):
                 raise TypeError(f"Invalid page name or index: {page}")
 
             _logger.debug(f"Switching to {page} (Index: {index}).")
+            if self.root.widget(index) is None:
+                _logger.warning(f"Page {page} has no root widget.")
+
             self.root.setCurrentIndex(index)
 
         except Exception as ex:
-            _logger.error("Invalid page to switch to.")
+            _logger.error(f"Error changing page: {ex}")
 
 if __name__ == '__main__':
 
