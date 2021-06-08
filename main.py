@@ -80,8 +80,13 @@ class MainWindow(QMainWindow):
         layout.addRow(QLabel("Password"), password_field)
 
         login_button = QPushButton("Login")
-        login_button.released.connect(lambda: self.change_page("Chart"))
+        login_button.released.connect(self.sign_in)
         layout.addRow(login_button)
+
+        guest_login_button = QPushButton("Continue as Guest")
+        guest_login_button.released.connect(lambda: self.change_page("Chart"))
+        layout.addRow(guest_login_button)
+
         wid.setLayout(layout)
         self.vbox_pagelogin.addWidget(wid)
 
@@ -150,6 +155,12 @@ class MainWindow(QMainWindow):
         dlg = QMessageBox(self)
         dlg.setWindowTitle("Registration Failure")
         dlg.setText("Registration cannot be completed at this time.")
+        dlg.exec()
+
+    def sign_in(self):
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle("Login Failure")
+        dlg.setText("Credentials not recognised.")
         dlg.exec()
 
     def _setup_chart_page(self):
