@@ -180,6 +180,7 @@ class MainWindow(QMainWindow):
         # Login page
         page = QWidget()
         layout = QVBoxLayout()
+        layout.setContentsMargins(380,100,380,200)
         page.setLayout(layout)
         self.root.insertWidget(self.pages["Login"], page)
 
@@ -212,6 +213,7 @@ class MainWindow(QMainWindow):
         # Register page
         page = QWidget()
         layout = QVBoxLayout()
+        layout.setContentsMargins(380, 100, 380, 200)
         page.setLayout(layout)
         self.root.insertWidget(self.pages["Register"], page)
 
