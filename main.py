@@ -52,9 +52,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Intelligent Stock Trader")
         self.setMinimumSize(1024, 512)
 
+        # Program root widget for storing GUI pages
         self.root = QStackedWidget()
 
-        # Display pages
+        # List pages and assign indicies
         self.pages = {
             "Login": 0,
             "Chart": 1,
@@ -64,75 +65,15 @@ class MainWindow(QMainWindow):
             "Help": 5
         }
 
-        # Login page
-        page = QWidget()
-        self.vbox_pagelogin = QVBoxLayout()
-        page.setLayout(self.vbox_pagelogin)
-        self.root.insertWidget(self.pages["Login"], page)
-
-        wid = QGroupBox("Login")
-
-        layout = QFormLayout()
-        layout.addRow(QLabel("Login"), QLineEdit())
-
-        password_field = QLineEdit()
-        password_field.setEchoMode(QLineEdit.Password)
-        layout.addRow(QLabel("Password"), password_field)
-
-        login_button = QPushButton("Login")
-        login_button.released.connect(self.sign_in)
-        layout.addRow(login_button)
-
-        guest_login_button = QPushButton("Continue as Guest")
-        guest_login_button.released.connect(lambda: self.change_page("Chart"))
-        layout.addRow(guest_login_button)
-
-        wid.setLayout(layout)
-        self.vbox_pagelogin.addWidget(wid)
-
-        register_button = QPushButton("Register")
-        register_button.released.connect(lambda: self.change_page("Register"))
-        self.vbox_pagelogin.addWidget(register_button)
-
-
-        # Register page
-        page = QWidget()
-        self.vbox_page_register = QVBoxLayout()
-        page.setLayout(self.vbox_page_register)
-        self.root.insertWidget(self.pages["Register"], page)
-        wid = QGroupBox("Login")
-
-        layout = QFormLayout()
-        layout.addRow(QLabel("Email / Login"), QLineEdit())
-
-        password_field = QLineEdit()
-        password_field.setEchoMode(QLineEdit.Password)
-        layout.addRow(QLabel("Password"), password_field)
-
-        reenter_password_field = QLineEdit()
-        reenter_password_field.setEchoMode(QLineEdit.Password)
-        layout.addRow(QLabel("Re-enter Password"), reenter_password_field)
-
-        register_button = QPushButton("Register")
-        register_button.released.connect(self.show_not_available_dialog)
-        layout.addRow(register_button)
-
-        wid.setLayout(layout)
-        self.vbox_page_register.addWidget(wid)
-
-        back_button = QPushButton("Back")
-        back_button.released.connect(lambda: self.change_page("Login"))
-        self.vbox_page_register.addWidget(back_button)
-
-
+        # Setup page layouts
+        self._setup_login_page()
+        self._setup_register_page()
         self._setup_chart_page()
+
 
         page = QWidget()
         page.setLayout(self.vbox_pagechart)
         self.root.insertWidget(self.pages["Chart"], page)
-
-
-
 
 
         page = QWidget()
@@ -234,6 +175,71 @@ class MainWindow(QMainWindow):
         self.vbox_sidebar.addLayout(self.vbox_chartmenu, 1)
         self.vbox_sidebar.addLayout(self.vbox_prediction, 2)
         self.vbox_sidebar.addLayout(self.vbox_data, 1)
+
+    def _setup_login_page(self):
+        # Login page
+        page = QWidget()
+        layout = QVBoxLayout()
+        page.setLayout(layout)
+        self.root.insertWidget(self.pages["Login"], page)
+
+        # Login form
+        groupbox = QGroupBox("Login")
+        formlayout = QFormLayout()
+        # Username field
+        formlayout.addRow(QLabel("Login"), QLineEdit())
+        # Password field
+        password_field = QLineEdit()
+        password_field.setEchoMode(QLineEdit.Password)
+        formlayout.addRow(QLabel("Password"), password_field)
+        # Login button
+        login_button = QPushButton("Login")
+        login_button.released.connect(self.sign_in)
+        formlayout.addRow(login_button)
+        # Guest login button
+        guest_login_button = QPushButton("Continue as Guest")
+        guest_login_button.released.connect(lambda: self.change_page("Chart"))
+        formlayout.addRow(guest_login_button)
+        # Set form layout
+        groupbox.setLayout(formlayout)
+        layout.addWidget(groupbox)
+
+        register_button = QPushButton("Register")
+        register_button.released.connect(lambda: self.change_page("Register"))
+        layout.addWidget(register_button)
+
+    def _setup_register_page(self):
+        # Register page
+        page = QWidget()
+        layout = QVBoxLayout()
+        page.setLayout(layout)
+        self.root.insertWidget(self.pages["Register"], page)
+
+        # Registration form
+        groupbox = QGroupBox("Login")
+        formlayout = QFormLayout()
+        # Username field
+        formlayout.addRow(QLabel("Email / Login"), QLineEdit())
+        # Password field
+        password_field = QLineEdit()
+        password_field.setEchoMode(QLineEdit.Password)
+        formlayout.addRow(QLabel("Password"), password_field)
+        # Reenter password field
+        reenter_password_field = QLineEdit()
+        reenter_password_field.setEchoMode(QLineEdit.Password)
+        formlayout.addRow(QLabel("Re-enter Password"), reenter_password_field)
+        # Register button
+        register_button = QPushButton("Register")
+        register_button.released.connect(self.show_not_available_dialog)
+        formlayout.addRow(register_button)
+        # Set form layout
+        groupbox.setLayout(formlayout)
+        layout.addWidget(groupbox)
+
+        # Back button
+        back_button = QPushButton("Back")
+        back_button.released.connect(lambda: self.change_page("Login"))
+        layout.addWidget(back_button)
 
     def clear_chart(self):
         # Clear existing chart
