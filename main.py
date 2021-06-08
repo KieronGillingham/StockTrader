@@ -11,7 +11,7 @@ from typing import List
 
 # GUI
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, \
-    QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit
+    QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit, QDialog, QMessageBox
 from PyQt5.QtCore import QTimer, QThreadPool
 
 # Threading
@@ -54,6 +54,105 @@ class MainWindow(QMainWindow):
 
         self.root = QStackedWidget()
 
+        # Display pages
+        self.pages = {
+            "Login": 0,
+            "Chart": 1,
+            "Register": 2,
+            "Forecast": 3,
+            "ChangePass": 4,
+            "Help": 5
+        }
+
+        # Login page
+        page = QWidget()
+        self.vbox_pagelogin = QVBoxLayout()
+        page.setLayout(self.vbox_pagelogin)
+        self.root.insertWidget(self.pages["Login"], page)
+
+        wid = QGroupBox("Login")
+
+        layout = QFormLayout()
+        layout.addRow(QLabel("Login"), QLineEdit())
+
+        password_field = QLineEdit()
+        password_field.setEchoMode(QLineEdit.Password)
+        layout.addRow(QLabel("Password"), password_field)
+
+        login_button = QPushButton("Login")
+        login_button.released.connect(lambda: self.change_page("Chart"))
+        layout.addRow(login_button)
+        wid.setLayout(layout)
+        self.vbox_pagelogin.addWidget(wid)
+
+        register_button = QPushButton("Register")
+        register_button.released.connect(lambda: self.change_page("Register"))
+        self.vbox_pagelogin.addWidget(register_button)
+
+
+        # Register page
+        page = QWidget()
+        self.vbox_page_register = QVBoxLayout()
+        page.setLayout(self.vbox_page_register)
+        self.root.insertWidget(self.pages["Register"], page)
+        wid = QGroupBox("Login")
+
+        layout = QFormLayout()
+        layout.addRow(QLabel("Email / Login"), QLineEdit())
+
+        password_field = QLineEdit()
+        password_field.setEchoMode(QLineEdit.Password)
+        layout.addRow(QLabel("Password"), password_field)
+
+        reenter_password_field = QLineEdit()
+        reenter_password_field.setEchoMode(QLineEdit.Password)
+        layout.addRow(QLabel("Re-enter Password"), reenter_password_field)
+
+        register_button = QPushButton("Register")
+        register_button.released.connect(self.show_not_available_dialog)
+        layout.addRow(register_button)
+
+        wid.setLayout(layout)
+        self.vbox_page_register.addWidget(wid)
+
+        back_button = QPushButton("Back")
+        back_button.released.connect(lambda: self.change_page("Login"))
+        self.vbox_page_register.addWidget(back_button)
+
+
+        self._setup_chart_page()
+
+        page = QWidget()
+        page.setLayout(self.vbox_pagechart)
+        self.root.insertWidget(self.pages["Chart"], page)
+
+
+
+
+
+        page = QWidget()
+        # page.setLayout(self.vbox_pagelogin)
+        self.root.insertWidget(self.pages["Forecast"], page)
+
+        # Center pages
+        self.setCentralWidget(self.root)
+
+        self.change_page("Login")
+
+        # Treadpool
+        self.threadpool = QThreadPool()
+        _logger.debug("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
+
+        # Display the main window
+        self.show()
+
+    def show_not_available_dialog(self):
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle("Registration Failure")
+        dlg.setText("Registration cannot be completed at this time.")
+        dlg.exec()
+
+    def _setup_chart_page(self):
         # Initalise layouts
         self.vbox_pagechart = QVBoxLayout()
         self.hbox_title = QHBoxLayout()
@@ -62,11 +161,6 @@ class MainWindow(QMainWindow):
         self.vbox_chartmenu = QVBoxLayout()
         self.vbox_prediction = QVBoxLayout()
         self.vbox_data = QVBoxLayout()
-        self.vbox_pagelogin = QVBoxLayout()
-
-
-
-
 
         # # Counter for debugging
         # self.counter = 0
@@ -80,8 +174,6 @@ class MainWindow(QMainWindow):
 
         wid = QLabel("Stock Trader")
         self.hbox_title.addWidget(wid)
-
-
 
         logout_button = QPushButton("Log Out")
         logout_button.released.connect(lambda: self.change_page("Login"))
@@ -131,68 +223,6 @@ class MainWindow(QMainWindow):
         self.vbox_sidebar.addLayout(self.vbox_chartmenu, 1)
         self.vbox_sidebar.addLayout(self.vbox_prediction, 2)
         self.vbox_sidebar.addLayout(self.vbox_data, 1)
-
-        # Display pages
-        self.pages = {
-            "Login": 0,
-            "Chart": 1,
-            "Register": 2,
-            "Forecast": 3
-        }
-
-        # Login page
-        page = QWidget()
-        page.setLayout(self.vbox_pagelogin)
-        self.root.insertWidget(self.pages["Login"], page)
-
-        wid = QGroupBox("Login")
-
-        layout = QFormLayout()
-        layout.addRow(QLabel("Login"), QLineEdit())
-        layout.addRow(QLabel("Password"), QLineEdit().setEchoMode(QLineEdit.Password))
-        login_button = QPushButton("Login")
-        login_button.released.connect(lambda: self.change_page("Chart"))
-        layout.addRow(login_button)
-        wid.setLayout(layout)
-        self.vbox_pagelogin.addWidget(wid)
-
-
-        register_button = QPushButton("Register")
-        register_button.released.connect(lambda: self.change_page("Register"))
-        self.vbox_pagelogin.addWidget(register_button)
-
-
-        wid = QLabel("Invest Amount (Stocks):")
-        self.vbox_prediction.addWidget(wid)
-        self.stock_invested = QSpinBox()
-        self.vbox_prediction.addWidget(self.stock_invested)
-
-
-        page = QWidget()
-        page.setLayout(self.vbox_pagechart)
-        self.root.insertWidget(self.pages["Chart"], page)
-
-
-
-        page = QWidget()
-        # page.setLayout(self.vbox_pagelogin)
-        self.root.insertWidget(self.pages["Register"], page)
-
-        page = QWidget()
-        # page.setLayout(self.vbox_pagelogin)
-        self.root.insertWidget(self.pages["Forecast"], page)
-
-        # Center pages
-        self.setCentralWidget(self.root)
-
-        self.change_page("Login")
-
-        # Treadpool
-        self.threadpool = QThreadPool()
-        _logger.debug("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
-
-        # Display the main window
-        self.show()
 
     def clear_chart(self):
         # Clear existing chart
