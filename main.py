@@ -11,7 +11,7 @@ from typing import List
 
 # GUI
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, \
-    QComboBox, QStackedWidget
+    QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit
 from PyQt5.QtCore import QTimer, QThreadPool
 
 # Threading
@@ -64,10 +64,9 @@ class MainWindow(QMainWindow):
         self.vbox_data = QVBoxLayout()
         self.vbox_pagelogin = QVBoxLayout()
 
-        login_button = QPushButton("Login")
-        login_button.released.connect(lambda: self.change_page("Chart"))
 
-        self.vbox_pagelogin.addWidget(login_button)
+
+
 
         # # Counter for debugging
         # self.counter = 0
@@ -146,10 +145,22 @@ class MainWindow(QMainWindow):
         page.setLayout(self.vbox_pagelogin)
         self.root.insertWidget(self.pages["Login"], page)
 
-        wid = QLabel("Invest Amount (Stocks):")
-        self.vbox_prediction.addWidget(wid)
-        self.stock_invested = QSpinBox()
-        self.vbox_prediction.addWidget(self.stock_invested)
+        wid = QGroupBox("Login")
+
+        layout = QFormLayout()
+        layout.addRow(QLabel("Login"), QLineEdit())
+        layout.addRow(QLabel("Password"), QLineEdit().setEchoMode(QLineEdit.Password))
+        login_button = QPushButton("Login")
+        login_button.released.connect(lambda: self.change_page("Chart"))
+        layout.addRow(login_button)
+        wid.setLayout(layout)
+        self.vbox_pagelogin.addWidget(wid)
+
+
+        register_button = QPushButton("Register")
+        register_button.released.connect(lambda: self.change_page("Register"))
+        self.vbox_pagelogin.addWidget(register_button)
+
 
         wid = QLabel("Invest Amount (Stocks):")
         self.vbox_prediction.addWidget(wid)
@@ -309,7 +320,7 @@ class MainWindow(QMainWindow):
             else:
                 raise TypeError(f"Invalid page name or index: {page}")
 
-            _logger.debug(f"Switching to {page} (Index: {index}).")
+            _logger.debug(f"Switching to {page} page (Index: {index}).")
             if self.root.widget(index) is None:
                 _logger.warning(f"Page {page} has no root widget.")
 
