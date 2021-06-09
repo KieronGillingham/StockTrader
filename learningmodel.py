@@ -44,7 +44,11 @@ class LearningModel():
 
 
         #return self.linear_model_prediction(stock, prediction_date_stamp)
-        return self.mlp_model_prediction(stock, prediction_date_stamp)
+        #return self.mlp_model_prediction(stock, prediction_date_stamp)
+
+        prediction_date_stamp = latest_date_stamp
+        latest_date_stamp = prediction_date_stamp - self.PERIODS[prediction_period]
+        return self.mlp_model_prediction(stock, prediction_date_stamp, latest_date_stamp)
 
     def linear_model_prediction(self, stock, prediction_date_stamp):
         latest_date_stamp = self.data.index.max()
@@ -67,37 +71,55 @@ class LearningModel():
 
         return pred_df
 
-    def mlp_model_prediction(self, stock, prediction_date_stamp):
-        latest_date_stamp = self.data.index.max()
+    def mlp_model_prediction(self, stock, prediction_date_stamp, latest_date_stamp=None):
 
-        x = np.array(self.data.index)
+        print(latest_date_stamp)
+        print(prediction_date_stamp)
+
+        self.data.sort_index(inplace=True)
+
+        if latest_date_stamp is None:
+            latest_date_stamp = self.data.index.max()
+
+        historical_data = self.data.loc[:latest_date_stamp]
+        _logger.debug(f"Historical Data: {historical_data}")
+
+        test_data = self.data.loc[latest_date_stamp:]
+        _logger.debug(f"Test Data: {test_data}")
+
+
+
+        x = np.array(historical_data.index)
         x = x.reshape(-1, 1)
 
-        y = self.data.values
+        y = historical_data.values
 
         _logger.debug(y)
         _logger.debug(x)
 
-        _logger.debug("Normalising (y)")
+        # Scaling
+        # _logger.debug("Normalising (y)")
+        # from sklearn.preprocessing import scale
+        # scale(y, copy=False)
+        # _logger.debug(y)
 
-        from sklearn.preprocessing import scale
-        scale(y, copy=False)
-
-        _logger.debug(y)
-
-        model = MLPRegressor(random_state=98628, max_iter=500)
+        model = MLPRegressor(random_state=98629, max_iter=500, solver='lbfgs')
         model.fit(x, y)
-        prediction = model.predict([[prediction_date_stamp]])
 
-        _logger.debug(f"{self.data.loc[latest_date_stamp].values} -> {prediction[0]}")
+        # Single date prediction
+        # prediction = model.predict([[prediction_date_stamp]])
+        # _logger.debug(f"{self.data.loc[latest_date_stamp].values} -> {prediction[0]}")
+        # pred_df = pd.DataFrame([self.data.loc[latest_date_stamp].values, prediction[0]],
+        #                       columns=self.data.columns, index=[latest_date_stamp, prediction_date_stamp])
 
-        pred_df = pd.DataFrame([self.data.loc[latest_date_stamp].values, prediction[0]],
-                               columns=self.data.columns, index=[latest_date_stamp, prediction_date_stamp])
+        prediction_dates = [[x] for x in test_data.index]
+        predictions = model.predict(prediction_dates)
+        _logger.debug(f"Test Data: {test_data}")
+        _logger.debug(f"Predictions: {predictions}")
+        pred_df = pd.DataFrame(predictions, columns=self.data.columns, index=test_data.index)
 
-        _logger.debug(pred_df)
-
+        # Filter by stock
         pred_df = pred_df[f"{stock}_close"]
-
         _logger.debug(pred_df)
 
         return pred_df
