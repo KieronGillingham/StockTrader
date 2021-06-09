@@ -81,29 +81,29 @@ class LearningModel():
         if latest_date_stamp is None:
             latest_date_stamp = self.data.index.max()
 
+        earliest_date_stamp = self.data.index.min()
+
         historical_data = self.data.loc[:latest_date_stamp]
         _logger.debug(f"Historical Data: {historical_data}")
 
         test_data = self.data.loc[latest_date_stamp:]
         _logger.debug(f"Test Data: {test_data}")
 
-
-
-        x = np.array(historical_data.index)
+        # Scale x dates by subtracting the min
+        x = np.array([x - earliest_date_stamp for x in historical_data.index])
         x = x.reshape(-1, 1)
-
+        prediction_dates = [[x - earliest_date_stamp] for x in test_data.index]
         y = historical_data.values
-
         _logger.debug(y)
         _logger.debug(x)
 
         # Scaling
-        # _logger.debug("Normalising (y)")
-        # from sklearn.preprocessing import scale
-        # scale(y, copy=False)
-        # _logger.debug(y)
+        _logger.debug("Normalising (y)")
+        from sklearn.preprocessing import scale
+        scale(y, copy=False)
+        _logger.debug(y)
 
-        model = MLPRegressor(random_state=98629, max_iter=500, solver='lbfgs')
+        model = MLPRegressor(random_state=98629, hidden_layer_sizes=(20,40,20), max_iter=1500, solver='lbfgs')
         model.fit(x, y)
 
         # Single date prediction
@@ -112,7 +112,6 @@ class LearningModel():
         # pred_df = pd.DataFrame([self.data.loc[latest_date_stamp].values, prediction[0]],
         #                       columns=self.data.columns, index=[latest_date_stamp, prediction_date_stamp])
 
-        prediction_dates = [[x] for x in test_data.index]
         predictions = model.predict(prediction_dates)
         _logger.debug(f"Test Data: {test_data}")
         _logger.debug(f"Predictions: {predictions}")
