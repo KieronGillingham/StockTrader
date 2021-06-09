@@ -11,7 +11,7 @@ from typing import List
 
 # GUI
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, \
-    QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit, QDialog, QMessageBox
+    QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit, QTabWidget, QMessageBox, QBoxLayout
 from PyQt5.QtCore import QTimer, QThreadPool
 
 # Threading
@@ -31,8 +31,6 @@ matplotlib.use('Qt5Agg')
 
 stock_data = StockData()
 learning_model = LearningModel()
-
-
 
 class MplCanvas(FigureCanvasQTAgg):
     """PyQt canvas for MatPlotLib graphs"""
@@ -69,16 +67,13 @@ class MainWindow(QMainWindow):
         self._setup_login_page()
         self._setup_register_page()
         self._setup_chart_page()
-
+        self._setup_forecast_page()
+        self._setup_changepass_page()
+        self._setup_help_page()
 
         page = QWidget()
         page.setLayout(self.vbox_pagechart)
         self.root.insertWidget(self.pages["Chart"], page)
-
-
-        page = QWidget()
-        # page.setLayout(self.vbox_pagelogin)
-        self.root.insertWidget(self.pages["Forecast"], page)
 
         # Center pages
         self.setCentralWidget(self.root)
@@ -130,6 +125,10 @@ class MainWindow(QMainWindow):
         logout_button = QPushButton("Log Out")
         logout_button.released.connect(lambda: self.change_page("Login"))
         self.hbox_title.addWidget(logout_button)
+
+        forecast_button = QPushButton("Forecast")
+        forecast_button.released.connect(lambda: self.change_page("Forecast"))
+        self.hbox_title.addWidget(forecast_button)
 
         self.filter_combobox = QComboBox()
         self.filter_combobox.currentIndexChanged.connect(self.filter_changed)
@@ -242,6 +241,62 @@ class MainWindow(QMainWindow):
         back_button = QPushButton("Back")
         back_button.released.connect(lambda: self.change_page("Login"))
         layout.addWidget(back_button)
+
+    def _setup_forecast_page(self):
+        # Forecast page
+        page = QWidget()
+        layout = QVBoxLayout()
+        page.setLayout(layout)
+        self.root.insertWidget(self.pages["Forecast"], page)
+
+        # Tabs
+        tab_widget = QTabWidget()
+        tab1 = QWidget()
+        tab2 = QWidget()
+        tab_widget.addTab(tab1, "Forecast")
+        tab_widget.addTab(tab2, "Suggest")
+        layout.addWidget(tab_widget)
+
+        # Forecast tab
+        forecast_tab_layout = QVBoxLayout()
+        tab1.setLayout(forecast_tab_layout)
+
+        forecast_tab_layout.addWidget(QComboBox())
+        forecast_tab_layout.addWidget(QComboBox())
+        forecast_tab_layout.addWidget(QComboBox())
+        forecast_tab_layout.addWidget(QPushButton("+"))
+        forecast_tab_layout.addWidget(QLabel("Calculation Result"))
+
+        # Suggest tab
+        suggest_tab_layout = QHBoxLayout()
+        tab2.setLayout(suggest_tab_layout)
+        # Suggest form
+        groupbox = QGroupBox()
+        formlayout = QFormLayout()
+        # Profit field
+        formlayout.addRow(QLabel("Desired profit"), QLineEdit())
+        # Timeframe field
+        formlayout.addRow(QLabel("Timeframe"), QLineEdit())
+        # Calculate button
+        button = QPushButton("Calculate")
+        formlayout.addRow(button)
+        # Set form layout
+        groupbox.setLayout(formlayout)
+        suggest_tab_layout.addWidget(groupbox, 1)
+
+        resultlabel = QLabel("Calculation result")
+        suggest_tab_layout.addWidget(resultlabel, 1)
+
+        # Back button
+        back_button = QPushButton("Back")
+        back_button.released.connect(lambda: self.change_page("Chart"))
+        layout.addWidget(back_button)
+
+    def _setup_changepass_page(self):
+        pass
+
+    def _setup_help_page(self):
+        pass
 
     def clear_chart(self):
         # Clear existing chart
