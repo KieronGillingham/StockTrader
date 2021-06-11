@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.neural_network import MLPRegressor
+from sklearn.preprocessing import StandardScaler
 
 class LearningModel():
 
@@ -23,7 +24,7 @@ class LearningModel():
     def __init__(self, data=None, *args, **kwargs):
         self.data = data
 
-    def predict(self, stock, prediction_period='NEXTWEEK'):
+    def predict(self, stock, prediction_period='NEXTMONTH'):
 
         _logger.debug(self.data)
 
@@ -98,28 +99,51 @@ class LearningModel():
         _logger.debug(x)
 
         # Scaling
-        _logger.debug("Normalising (y)")
-        from sklearn.preprocessing import scale
-        scale(y, copy=False)
+        _logger.debug("Scaling (y)")
+        scaler = StandardScaler()
+        scaler.fit(y)
+        y = scaler.transform(y)
         _logger.debug(y)
 
-        model = MLPRegressor(random_state=98629, hidden_layer_sizes=(20,40,20), max_iter=1500, solver='lbfgs')
-        model.fit(x, y)
 
-        # Single date prediction
-        # prediction = model.predict([[prediction_date_stamp]])
-        # _logger.debug(f"{self.data.loc[latest_date_stamp].values} -> {prediction[0]}")
-        # pred_df = pd.DataFrame([self.data.loc[latest_date_stamp].values, prediction[0]],
-        #                       columns=self.data.columns, index=[latest_date_stamp, prediction_date_stamp])
+        model = MLPRegressor(random_state=98629, hidden_layer_sizes=(20), max_iter=500, solver="adam",
+                             verbose=True)
 
-        predictions = model.predict(prediction_dates)
+        predictions = []
+        normed_latest_date_stamp = latest_date_stamp - earliest_date_stamp
+
+        prediction_dates.pop(0)
+
+
+        for prediction_date in prediction_dates:
+            if prediction_date[0] == normed_latest_date_stamp:
+                continue
+            print(len(x))
+            model.fit(x, y)
+
+            # Single date prediction
+            # prediction = model.predict([[prediction_date_stamp]])
+            # _logger.debug(f"{self.data.loc[latest_date_stamp].values} -> {prediction[0]}")
+            # pred_df = pd.DataFrame([self.data.loc[latest_date_stamp].values, prediction[0]],
+            #                       columns=self.data.columns, index=[latest_date_stamp, prediction_date_stamp])
+
+            prediction = model.predict([prediction_date])
+            predictions.append(prediction[0])
+            #x = np.append(x, prediction_date, axis=0)
+            x = np.concatenate([x, [prediction_date]], axis=0)
+            y = np.concatenate([y, [prediction[0]]], axis=0)
+
+        predictions = scaler.inverse_transform(predictions)
         _logger.debug(f"Test Data: {test_data}")
         _logger.debug(f"Predictions: {predictions}")
-        pred_df = pd.DataFrame(predictions, columns=self.data.columns, index=test_data.index)
+        unscaled_prediction_dates = [(i[0] + earliest_date_stamp) for i in prediction_dates]
+        pred_df = pd.DataFrame(predictions, columns=self.data.columns, index=unscaled_prediction_dates)
 
         # Filter by stock
         pred_df = pred_df[f"{stock}_close"]
         _logger.debug(pred_df)
+        # Using mean for naïve forecasting
+        _logger.debug(f"Historical data mean: {historical_data[f'{stock}_close'].mean()}")
 
         return pred_df
 
