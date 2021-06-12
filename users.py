@@ -3,7 +3,6 @@ import logging
 _logger = logging.getLogger(__name__)
 
 # Data manipulation
-import pandas as pd
 from pandas import read_csv
 
 class UserManager:
@@ -36,8 +35,9 @@ class UserManager:
             _logger.info("Invalid username or password")
             return None
 
-    def save_to_csv(self, csv_path="data/localstorage.csv"):
-        self.prices_df.to_csv(csv_path)
+    def save_to_csv(self, csv_path="data/users.csv"):
+        pass
+        # self.prices_df.to_csv(csv_path)
 
     def guest_account(self):
         return {
