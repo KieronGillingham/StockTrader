@@ -62,6 +62,7 @@ class MainWindow(QMainWindow):
             "ChangePass": 4,
             "Help": 5
         }
+        self.user = None
 
         # Setup page layouts
         self._setup_login_page()
@@ -88,16 +89,39 @@ class MainWindow(QMainWindow):
         self.show()
 
     def show_not_available_dialog(self):
-        dlg = QMessageBox(self)
-        dlg.setWindowTitle("Registration Failure")
-        dlg.setText("Registration cannot be completed at this time.")
-        dlg.exec()
+        self.show_dialog("Registration Failure", "Registration cannot be completed at this time.")
 
-    def sign_in(self):
-        dlg = QMessageBox(self)
-        dlg.setWindowTitle("Login Failure")
-        dlg.setText("Credentials not recognised.")
-        dlg.exec()
+    def set_user_label(self):
+        if self.user is not None:
+            self.user_label.setText(f"Signed in as: {self.user['username']} | Balance: £{self.user['balance']}")
+        else:
+            self.user_label.setText("No user found.")
+
+    def sign_in(self, username, password):
+        if username == "Guest":
+            self.user = self.user_manager.guest_account()
+
+        elif username in [None, False, ""]:
+            self.show_dialog("Login Failure", "Please enter a valid username.")
+            return
+
+        elif password in [None, False, ""]:
+            self.show_dialog("Login Failure", "Please enter a valid password.")
+            return
+
+        else:
+            self.user = self.user_manager.sign_in(username, password)
+
+        if self.user is None:
+            self.show_dialog("Login Failure", "Credentials not recognised.")
+        else:
+            _logger.info(f"Signed in as {self.user['username']}")
+            self.change_page("Chart")
+
+    def log_out(self):
+        _logger.info(f"Signing out {self.user['username']}")
+        self.user = None
+        self.change_page("Login")
 
     def _setup_chart_page(self):
         # Initalise layouts
@@ -119,11 +143,13 @@ class MainWindow(QMainWindow):
         # self.timer.timeout.connect(self.recurring_timer)
         # self.timer.start()
 
-        wid = QLabel("Stock Trader")
-        self.hbox_title.addWidget(wid)
+
+        self.user_label = QLabel()
+        self.set_user_label()
+        self.hbox_title.addWidget(self.user_label)
 
         logout_button = QPushButton("Log Out")
-        logout_button.released.connect(lambda: self.change_page("Login"))
+        logout_button.released.connect(self.log_out)
         self.hbox_title.addWidget(logout_button)
 
         forecast_button = QPushButton("Forecast")
@@ -183,22 +209,26 @@ class MainWindow(QMainWindow):
         page.setLayout(layout)
         self.root.insertWidget(self.pages["Login"], page)
 
+        from users import UserManager
+        self.user_manager = UserManager()
+
         # Login form
         groupbox = QGroupBox("Login")
         formlayout = QFormLayout()
         # Username field
-        formlayout.addRow(QLabel("Login"), QLineEdit())
+        username_field = QLineEdit()
+        formlayout.addRow(QLabel("Login"), username_field)
         # Password field
         password_field = QLineEdit()
         password_field.setEchoMode(QLineEdit.Password)
         formlayout.addRow(QLabel("Password"), password_field)
         # Login button
         login_button = QPushButton("Login")
-        login_button.released.connect(self.sign_in)
+        login_button.released.connect(lambda: self.sign_in(username_field.text(), password_field.text()))
         formlayout.addRow(login_button)
         # Guest login button
         guest_login_button = QPushButton("Continue as Guest")
-        guest_login_button.released.connect(lambda: self.change_page("Chart"))
+        guest_login_button.released.connect(lambda: self.sign_in("Guest", None))
         formlayout.addRow(guest_login_button)
         # Set form layout
         groupbox.setLayout(formlayout)
@@ -429,9 +459,16 @@ class MainWindow(QMainWindow):
                 _logger.warning(f"Page {page} has no root widget.")
 
             self.root.setCurrentIndex(index)
+            self.set_user_label()
 
         except Exception as ex:
             _logger.error(f"Error changing page: {ex}")
+
+    def show_dialog(self, title : str, message : str):
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(title)
+        dlg.setText(message)
+        dlg.exec()
 
 if __name__ == '__main__':
 
