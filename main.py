@@ -11,8 +11,8 @@ from typing import List
 
 # GUI
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, \
-    QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit, QTabWidget, QMessageBox, QBoxLayout
-from PyQt5.QtCore import QTimer, QThreadPool
+    QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit, QTabWidget, QMessageBox, QBoxLayout, QDateEdit
+from PyQt5.QtCore import QTimer, QThreadPool, QDateTime, QDate
 
 # Threading
 from stockthreading import Worker
@@ -126,7 +126,7 @@ class MainWindow(QMainWindow):
     def _setup_chart_page(self):
         # Initalise layouts
         self.vbox_pagechart = QVBoxLayout()
-        self.hbox_title = QHBoxLayout()
+        hbox_title = QHBoxLayout()
         self.hbox_main = QHBoxLayout()
         self.vbox_sidebar = QVBoxLayout()
         self.vbox_chartmenu = QVBoxLayout()
@@ -143,18 +143,17 @@ class MainWindow(QMainWindow):
         # self.timer.timeout.connect(self.recurring_timer)
         # self.timer.start()
 
-
         self.user_label = QLabel()
         self.set_user_label()
-        self.hbox_title.addWidget(self.user_label)
+        hbox_title.addWidget(self.user_label)
 
         logout_button = QPushButton("Log Out")
         logout_button.released.connect(self.log_out)
-        self.hbox_title.addWidget(logout_button)
+        hbox_title.addWidget(logout_button)
 
         forecast_button = QPushButton("Forecast")
-        forecast_button.released.connect(lambda: self.change_page("Forecast"))
-        self.hbox_title.addWidget(forecast_button)
+        forecast_button.released.connect(lambda: [self.change_page("Forecast"), self.reset_transactions()])
+        hbox_title.addWidget(forecast_button)
 
         self.filter_combobox = QComboBox()
         self.filter_combobox.currentIndexChanged.connect(self.filter_changed)
@@ -194,7 +193,7 @@ class MainWindow(QMainWindow):
         self.prices_df = None
 
         # Set layout hierarchy
-        self.vbox_pagechart.addLayout(self.hbox_title, 1)
+        self.vbox_pagechart.addLayout(hbox_title, 1)
         self.vbox_pagechart.addLayout(self.hbox_main, 5)
         self.hbox_main.addLayout(self.vbox_sidebar, 1)
         self.vbox_sidebar.addLayout(self.vbox_chartmenu, 1)
@@ -281,21 +280,25 @@ class MainWindow(QMainWindow):
 
         # Tabs
         tab_widget = QTabWidget()
-        tab1 = QWidget()
+        self.forecast_tab = QWidget()
         tab2 = QWidget()
-        tab_widget.addTab(tab1, "Forecast")
+        tab_widget.addTab(self.forecast_tab, "Forecast")
         tab_widget.addTab(tab2, "Suggest")
         layout.addWidget(tab_widget)
 
         # Forecast tab
-        forecast_tab_layout = QVBoxLayout()
-        tab1.setLayout(forecast_tab_layout)
+        self.forecast_tab_layout = QVBoxLayout()
+        self.forecast_tab.setLayout(self.forecast_tab_layout)
 
-        forecast_tab_layout.addWidget(QComboBox())
-        forecast_tab_layout.addWidget(QComboBox())
-        forecast_tab_layout.addWidget(QComboBox())
-        forecast_tab_layout.addWidget(QPushButton("+"))
-        forecast_tab_layout.addWidget(QLabel("Calculation Result"))
+        add_button = QPushButton("+")
+        add_button.released.connect(self.add_transaction)
+        self.forecast_tab_layout.addWidget(add_button)
+
+        self.forecast_tab_layout.addStretch()
+
+        self.forecast_tab_layout.addWidget(QLabel("Calculation Result"))
+
+        self.reset_transactions()
 
         # Suggest tab
         suggest_tab_layout = QHBoxLayout()
@@ -469,6 +472,43 @@ class MainWindow(QMainWindow):
         dlg.setWindowTitle(title)
         dlg.setText(message)
         dlg.exec()
+
+    def add_transaction(self, count=1):
+        for i in range(0,count):
+            self.forecast_tab_layout.insertWidget(self.forecast_tab_layout.count()-3, QTransaction(), stretch=0)
+
+    def reset_transactions(self):
+        print(self.forecast_tab.children())
+        for widget in self.forecast_tab.children():
+            if isinstance(widget, QTransaction):
+                widget.setParent(None)
+        self.add_transaction(3)
+
+class QTransaction(QWidget):
+    def __init__(self, *args, **kwargs):
+        super(QTransaction, self).__init__(*args, **kwargs)
+        self.layout = QHBoxLayout()
+        self.combobox = QComboBox()
+        self.value = QSpinBox()
+        self.date = QDateEdit()
+        self.date.setDate(QDate.currentDate())
+        self.remove = QPushButton("❌")
+        self.remove.setBaseSize(10, 10)
+        self.remove.pressed.connect(self.remove_transaction)
+        self.layout.addWidget(self.combobox)
+        self.layout.addWidget(self.value)
+        self.layout.addWidget(self.date)
+        self.layout.addWidget(self.remove)
+        self.setLayout(self.layout)
+
+
+
+    def remove_transaction(self):
+        self.setParent(None)
+        #parent = self.parentWidget()
+        #layout = parent.layout()
+        #layout.removeWidget(self.widget_name)
+
 
 if __name__ == '__main__':
 
