@@ -1,5 +1,8 @@
 # Logging
 import logging
+
+from sklearn.model_selection import GridSearchCV
+
 _logger = logging.getLogger(__name__)
 
 # General
@@ -105,9 +108,18 @@ class LearningModel():
         y = scaler.transform(y)
         _logger.debug(y)
 
+        params = [
+            {
+                "random_state": [98629],
+                "solver": ["adam"],
+                "hidden_layer_sizes": [(10, 5), (10, 5, 10), (10, 5, 2)],
+                "max_iter": [500],
+                "verbose": [True]
+            }
+        ]
 
-        model = MLPRegressor(random_state=98629, hidden_layer_sizes=(20), max_iter=500, solver="adam",
-                             verbose=True)
+        model = MLPRegressor()
+        regressor = GridSearchCV(model, params)
 
         predictions = []
         normed_latest_date_stamp = latest_date_stamp - earliest_date_stamp
@@ -118,8 +130,8 @@ class LearningModel():
         for prediction_date in prediction_dates:
             if prediction_date[0] == normed_latest_date_stamp:
                 continue
-            print(len(x))
-            model.fit(x, y)
+            regressor.fit(x, y)
+            print(regressor.best_params_)
 
             # Single date prediction
             # prediction = model.predict([[prediction_date_stamp]])
@@ -127,7 +139,7 @@ class LearningModel():
             # pred_df = pd.DataFrame([self.data.loc[latest_date_stamp].values, prediction[0]],
             #                       columns=self.data.columns, index=[latest_date_stamp, prediction_date_stamp])
 
-            prediction = model.predict([prediction_date])
+            prediction = regressor.predict([prediction_date])
             predictions.append(prediction[0])
             #x = np.append(x, prediction_date, axis=0)
             x = np.concatenate([x, [prediction_date]], axis=0)
