@@ -493,22 +493,15 @@ class QTransaction(QWidget):
         self.date = QDateEdit()
         self.date.setDate(QDate.currentDate())
         self.remove = QPushButton("❌")
-        self.remove.setBaseSize(10, 10)
         self.remove.pressed.connect(self.remove_transaction)
-        self.layout.addWidget(self.combobox)
-        self.layout.addWidget(self.value)
-        self.layout.addWidget(self.date)
-        self.layout.addWidget(self.remove)
+        self.layout.addWidget(self.combobox, 2)
+        self.layout.addWidget(self.value, 3)
+        self.layout.addWidget(self.date, 3)
+        self.layout.addWidget(self.remove, 1)
         self.setLayout(self.layout)
-
-
 
     def remove_transaction(self):
         self.setParent(None)
-        #parent = self.parentWidget()
-        #layout = parent.layout()
-        #layout.removeWidget(self.widget_name)
-
 
 if __name__ == '__main__':
 
