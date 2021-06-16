@@ -108,27 +108,35 @@ class TestUserManager(TestCase):
 
         # Register valid user should succeed
         usercount = len(self.user_manager.userbase.index)
-        self.assertEqual("Registration successful.", self.user_manager.register_user("newuser", "newpass", starting_balance=50.0))
-        self.assertEqual(usercount + 1, len(self.user_manager.userbase.index))
+        self.assertEqual("Registration successful.", self.user_manager.register_user("newuser", "newpass11", starting_balance=50.0))
+        self.assertEqual(usercount + 1, len(self.user_manager.userbase.index), "User count incorrect.")
 
         # Register user with existing username should fail
         usercount = len(self.user_manager.userbase.index)
-        self.assertEqual("Username already exists.", self.user_manager.register_user("newuser", "newpass", starting_balance=50.0))
-        self.assertEqual(usercount, len(self.user_manager.userbase.index))
+        self.assertEqual("Username already exists.", self.user_manager.register_user("newuser", "newpass22", starting_balance=50.0))
+        self.assertEqual(usercount, len(self.user_manager.userbase.index), "User count incorrect.")
+
+        # Register user with invalid password should fail
+        usercount = len(self.user_manager.userbase.index)
+        self.assertEqual("Registration successful.", self.user_manager.register_user("terrysmith"),
+                         "Successful registration message not received.")
+        self.assertEqual(usercount + 1, len(self.user_manager.userbase.index), "User count incorrect.")
 
         # Register user with no balance should default to 0
         usercount = len(self.user_manager.userbase.index)
-        self.assertEqual("Registration successful.", self.user_manager.register_user("michellejones", "pass123"))
-        self.assertEqual(usercount + 1, len(self.user_manager.userbase.index))
-        self.assertEqual(self.user_manager.userbase[["michellejones"]]["balance"], 0)
+        self.assertEqual("Registration successful.", self.user_manager.register_user("michellejones", "password123"),
+                         "Successful registration message not received.")
+        self.assertEqual(usercount + 1, len(self.user_manager.userbase.index), "User count incorrect.")
+        self.assertEqual(0, self.user_manager.userbase.loc["michellejones"]["balance"], "User balance incorrect.")
 
         # Register user with no userbase set should fail
+        self.user_manager.userbase = None
+        self.assertEqual("User registration unavailable. User database has not been initialised.",
+                         self.user_manager.register_user("adamstarling", "password88", 500))
+        self.assertEqual(usercount, len(self.user_manager.userbase.index), "User count incorrect.")
 
         #
         # def register_user(self, username: str, password: str, starting_balance=0):
-        #     if self.userbase is None:
-        #         _logger.error("Userbase not loaded. Call `load_userbase()` first.")
-        #         return "User registration unavailable. User database has not been initialised."
         #     if password is None:
         #         _logger.error("Password is invalid.")
         #         return "Password is invalid."

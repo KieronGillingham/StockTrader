@@ -138,12 +138,17 @@ class UserManager:
         return False
 
     def register_user(self, username : str, password : str, starting_balance=0):
-        if self.userbase is None:
+        invalid = [None, ""]
+
+        if username in invalid:
+            _logger.error("No username given.")
+            return "Username is invalid."
+        elif password in invalid:
+            _logger.error("No password given.")
+            return "Password is invalid."
+        elif self.userbase is None:
             _logger.error("Userbase not loaded. Call `load_userbase()` first.")
             return "User registration unavailable. User database has not been initialised."
-        if password is None:
-            _logger.error("Password is invalid.")
-            return "Password is invalid."
         try:
             if username in self.userbase.index:
                 return "Username already exists."
@@ -153,6 +158,7 @@ class UserManager:
                     "balance": starting_balance
                 }
                 self.userbase.loc[username] = user_details
+                self.save_to_csv()
                 return "Registration successful."
 
         except Exception as ex:

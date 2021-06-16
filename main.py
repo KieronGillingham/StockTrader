@@ -246,10 +246,11 @@ class MainWindow(QMainWindow):
         self.root.insertWidget(self.pages["Register"], page)
 
         # Registration form
-        groupbox = QGroupBox("Login")
+        groupbox = QGroupBox("Register")
         formlayout = QFormLayout()
         # Username field
-        formlayout.addRow(QLabel("Email / Login"), QLineEdit())
+        username_field = QLineEdit()
+        formlayout.addRow(QLabel("Email / Login"), username_field)
         # Password field
         password_field = QLineEdit()
         password_field.setEchoMode(QLineEdit.Password)
@@ -260,7 +261,7 @@ class MainWindow(QMainWindow):
         formlayout.addRow(QLabel("Re-enter Password"), reenter_password_field)
         # Register button
         register_button = QPushButton("Register")
-        register_button.released.connect(self.show_not_available_dialog)
+        register_button.released.connect(lambda: self.register(username_field.text(), password_field.text(), reenter_password_field.text()))
         formlayout.addRow(register_button)
         # Set form layout
         groupbox.setLayout(formlayout)
@@ -483,6 +484,16 @@ class MainWindow(QMainWindow):
             if isinstance(widget, QTransaction):
                 widget.setParent(None)
         self.add_transaction(3)
+
+    def register(self, username, password, reenterpassword):
+
+        if password != reenterpassword:
+            message = "Passwords do not match."
+
+        else:
+            message = self.user_manager.register_user(username, password)
+
+        self.show_dialog("Registration", message)
 
 class QTransaction(QWidget):
     def __init__(self, *args, **kwargs):
