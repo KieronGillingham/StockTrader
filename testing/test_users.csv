@@ -1,4 +1,5 @@
-username,password,balance
-bobjones,abc123,100.00
-charliesmith@solfintech.co.uk,cat001,250.00
-megacorp@megacorp.co.uk,xyz321,100000.00
+,password,balance
+bobjones,abc123,100.0
+charliesmith@solfintech.co.uk,cat001,250.0
+megacorp@megacorp.co.uk,xyz321,100000.0
+newuser,newpass,50.0
