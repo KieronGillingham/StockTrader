@@ -1,4 +1,5 @@
 # Logging
+import calendar
 import logging
 _logger = logging.getLogger(__name__)
 log_template = "[%(asctime)s] %(levelname)s %(threadName)s %(name)s: %(message)s"
@@ -6,7 +7,7 @@ logging.basicConfig(level=logging.DEBUG, format=log_template, handlers= [logging
 
 # General
 import sys
-from datetime import date
+from datetime import date, datetime
 from typing import List
 
 # GUI
@@ -59,7 +60,7 @@ class MainWindow(QMainWindow):
             "Chart": 1,
             "Register": 2,
             "Forecast": 3,
-            "ChangePass": 4,
+            "User": 4,
             "Help": 5
         }
         self.user = None
@@ -69,7 +70,7 @@ class MainWindow(QMainWindow):
         self._setup_register_page()
         self._setup_chart_page()
         self._setup_forecast_page()
-        self._setup_changepass_page()
+        self._setup_user_page()
         self._setup_help_page()
 
         page = QWidget()
@@ -160,20 +161,20 @@ class MainWindow(QMainWindow):
         self.vbox_chartmenu.addWidget(self.filter_combobox)
 
         wid = QPushButton("Reload from Yahoo Finance")
-        wid.pressed.connect(self.load_data_from_yf)
+        wid.released.connect(self.load_data_from_yf)
         self.vbox_data.addWidget(wid)
 
         wid = QPushButton("Save data to file")
-        wid.pressed.connect(self.save_data_to_file)
+        wid.released.connect(self.save_data_to_file)
         self.vbox_data.addWidget(wid)
 
         wid = QPushButton("Load data from file")
-        wid.pressed.connect(self.load_data_from_file)
+        wid.released.connect(self.load_data_from_file)
         self.vbox_data.addWidget(wid)
 
-        wid = QPushButton("Clear Chart")
-        wid.pressed.connect(self.clear_chart)
-        self.vbox_data.addWidget(wid)
+        userpage_button = QPushButton("User")
+        userpage_button.released.connect(lambda: self.change_page("User"))
+        hbox_title.addWidget(userpage_button)
 
         wid = QLabel("Invest Amount (Stocks):")
         self.vbox_prediction.addWidget(wid)
@@ -261,7 +262,7 @@ class MainWindow(QMainWindow):
         formlayout.addRow(QLabel("Re-enter Password"), reenter_password_field)
         # Register button
         register_button = QPushButton("Register")
-        register_button.released.connect(lambda: self.register(username_field.text(), password_field.text(), reenter_password_field.text()))
+        register_button.released.connect(lambda: self.register_form(username_field.text(), password_field.text(), reenter_password_field.text()))
         formlayout.addRow(register_button)
         # Set form layout
         groupbox.setLayout(formlayout)
@@ -326,7 +327,7 @@ class MainWindow(QMainWindow):
         back_button.released.connect(lambda: self.change_page("Chart"))
         layout.addWidget(back_button)
 
-    def _setup_changepass_page(self):
+    def _setup_user_page(self):
         pass
 
     def _setup_help_page(self):
@@ -385,16 +386,13 @@ class MainWindow(QMainWindow):
         if learning_model.set_data(data):
             _logger.debug("Data setup complete.")
 
-        for n in stock_data.get_stocknames():
+        for n in stock_data.stockdict:
             self.filter_combobox.addItem(n, userData=stock_data.get_symbol(n))
-
-
 
         #self.draw_single_stock("TYT.L")
 
     def load_data_from_yf(self):
-        # Pass the function to execute
-        stock_data.get_yahoo_finance_data(start_date='2020-12-01', end_date='2021-03-01', time_interval='daily', on_finish=self.data_loaded)  # Any other args, kwargs are passed to the run function
+        stock_data.get_yahoo_finance_data(start_date='2019-12-01', end_date='2021-03-01', time_interval='daily', on_finish=self.data_loaded)  # Any other args, kwargs are passed to the run function
 
     def load_data_from_file(self):
         # Pass the function to execute
@@ -410,10 +408,17 @@ class MainWindow(QMainWindow):
             self.draw_single_stock(self.filter_combobox.itemData(value))
             self.make_prediction()
 
-    def calculate(self):
-        # TODO: Fix implementation
-        pass
-        # stock_data.calculate()
+    def calculate_investments(self):
+        transactions = self.get_transactions()
+        # Create list of tuples of format:
+        # (
+        #   Stock symbol,
+        #   Proposed number of shares purchased/sold,
+        #   Proposed date of the transaction
+        # )
+        transaction_list = [(t.combobox.currentData(), t.value, t.date.date.toPyDate()) for t in transactions]
+
+        print(learning_model.calculate_return(transaction_list))
 
     # def recurring_timer(self):
     #     """Increment counter"""
@@ -441,7 +446,7 @@ class MainWindow(QMainWindow):
         stock_data.save_to_csv()
 
     def make_prediction(self):
-        predictions = learning_model.predict(self.filter_combobox.currentData())
+        predictions = learning_model.get_predictions(self.filter_combobox.currentData())
         self.draw_single_stock(self.filter_combobox.currentData(), predictions)
 
     def change_page(self, page):
@@ -476,43 +481,91 @@ class MainWindow(QMainWindow):
 
     def add_transaction(self, count=1):
         for i in range(0,count):
-            self.forecast_tab_layout.insertWidget(self.forecast_tab_layout.count()-3, QTransaction(), stretch=0)
+            transaction = QTransaction(stock_data.stockdict)
+
+            self.forecast_tab_layout.insertWidget(self.forecast_tab_layout.count()-3, transaction, stretch=0)
+
+    def get_transactions(self):
+        return [widget for widget in self.forecast_tab.children() if isinstance(widget, QTransaction)]
 
     def reset_transactions(self):
-        print(self.forecast_tab.children())
-        for widget in self.forecast_tab.children():
-            if isinstance(widget, QTransaction):
-                widget.setParent(None)
+        for transaction in self.get_transactions():
+            transaction.remove_transaction()
         self.add_transaction(3)
 
-    def register(self, username, password, reenterpassword):
-
-        if password != reenterpassword:
+    def register_form(self, username, password, reenter_password):
+        """
+        Process and validate inputs on the registration form. Shows a response message to the user.
+        :param username: The input username.
+        :param password: The input password.
+        :param reenter_password: The input for re-enter password.
+        :return: None.
+        """
+        # Confirm entered passwords match.
+        if password != reenter_password:
             message = "Passwords do not match."
-
         else:
+            # Attempt to register the user with the given username and password.
             message = self.user_manager.register_user(username, password)
 
+        # Display a returned message to the user.
         self.show_dialog("Registration", message)
 
 class QTransaction(QWidget):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, symbols, *args, **kwargs):
         super(QTransaction, self).__init__(*args, **kwargs)
         self.layout = QHBoxLayout()
+
+        combobox_label = QLabel("Stock:")
+        self.layout.addWidget(combobox_label, 1)
+
         self.combobox = QComboBox()
+        self.combobox.currentIndexChanged.connect(self.update_price)
+        self.layout.addWidget(self.combobox, 2)
+
+        self.stocksymbol_label = QLabel("(STOCK)")
+        self.layout.addWidget(self.stocksymbol_label, 1)
+
         self.value = QSpinBox()
+        self.layout.addWidget(self.value, 1)
+
+        self.sharesprice_label = QLabel("shares at £xxx /share")
+        self.layout.addWidget(self.sharesprice_label, 1)
+
         self.date = QDateEdit()
         self.date.setDate(QDate.currentDate())
+        self.layout.addWidget(self.date, 3)
+
+        self.total_label = QLabel("Total: £xxx")
+        self.layout.addWidget(self.total_label, 1)
+
         self.remove = QPushButton("❌")
         self.remove.pressed.connect(self.remove_transaction)
-        self.layout.addWidget(self.combobox, 2)
-        self.layout.addWidget(self.value, 3)
-        self.layout.addWidget(self.date, 3)
         self.layout.addWidget(self.remove, 1)
+
         self.setLayout(self.layout)
+        if symbols is not None:
+            self.set_symbols(symbols)
+
+    def update_price(self):
+        stocksymbol = self.combobox.currentData()
+        self.stocksymbol_label.setText(f"({stocksymbol})")
+        value = self.value.value()
+        transaction_date = self.date.date().toPyDate()
+
+        prediction_date_stamp = calendar.timegm(transaction_date.timetuple())
+        price = learning_model.get_value(stocksymbol, transaction_date)
+        if price is not None:
+            self.sharesprice_label.setText(str(price))
+            self.total_label.setText(str(price * value))
 
     def remove_transaction(self):
         self.setParent(None)
+
+    def set_symbols(self, symbols):
+        for n in symbols:
+            self.combobox.addItem(n, userData=symbols[n])
+
 
 if __name__ == '__main__':
 
