@@ -16,16 +16,18 @@ from pandas import read_csv
 class StockData:
     """
     Class for accessing stock data from YahooFinance or a local CSV file.
-    # Threading is used to access data asynchronously.
+    Threading is used to access data asynchronously.
     """
-
     def __init__(self, csv_path="data/localstorage.csv", symbols_file="data/stocksymbols.csv", *args, **kwargs):
         # Threading
         self.threadpool = QThreadPool()
-        _logger.debug(f"Multithreading with maximum {self.threadpool.maxThreadCount()} threads")
+        _logger.debug(f"Multithreading with maximum {self.threadpool.maxThreadCount()} threads.")
 
-        # Load data from csv by default
-        self.load_from_csv(csv_path=csv_path, symbols_file=symbols_file)
+        # Attempt to load data from csv by default
+        try:
+            self.load_from_csv(csv_path=csv_path, symbols_file=symbols_file)
+        except Exception as ex:
+            _logger.error(ex)
 
     def get_symbol(self, name):
         return self.stockdict[name]
@@ -35,12 +37,13 @@ class StockData:
         self.stockdict = {}
         for row in stocksymbols.values:
             self.stockdict[row[1]] = row[0]
-        return self.stockdict
+
+        self.stocknames = list(self.stockdict.keys())[:5]  # First 5 only
 
     def load_data_from_yahoo_finance(self, progress_callback, start_date=None, end_date=None, stocksymbols=None, time_interval='monthly'):
         _logger.debug("Load data from yahoo finance")
         if stocksymbols == None:
-            stocks = self.load_stocks()
+            stocks = self.stockdict
             self.stocknames = list(stocks.keys())[:5] # First 5 only
             stocksymbols = list(stocks.values())[:5]
 
@@ -85,17 +88,21 @@ class StockData:
         self.threadpool.start(worker)
 
     def load_from_csv(self, progress_callback=None, csv_path="data/localstorage.csv", symbols_file="data/stocksymbols.csv"):
-        _logger.debug("Loading from local file")
+        _logger.debug(f"Loading from local file {csv_path}")
         try:
             self.prices_df = read_csv(csv_path, index_col=0)
+            self.describe_data()
         except FileNotFoundError as ex:
-            _logger.error(f"Local storage file '{csv_path}' not found: {ex}")
+            _logger.warning(f"Local storage file '{csv_path}' not found: {ex}")
+        except Exception as ex:
+            _logger.error(ex)
 
         try:
-            stocks = self.load_stocks(symbols_file)
-            self.stocknames = list(stocks.keys())[:5]  # First 5 only
+            self.load_stocks(symbols_file)
         except FileNotFoundError as ex:
             _logger.error(f"Local storage file '{symbols_file}' not found: {ex}")
+        except Exception as ex:
+            _logger.error(ex)
     # def thread_complete(self):
     #     print("THREAD COMPLETE!")
 
@@ -121,21 +128,9 @@ class StockData:
 
         _logger.debug(buy_cost, sell_cost, profit)
 
-    def get_stocknames(self, symbols=None):
-        """
-        Look up stock names from symbols.
-
-        :param symbols: The symbols to look up. Returns all stock names in loaded data if symbols == None.
-        :return: List of stock names.
-        """
-
-        return self.stocknames
-
     def save_to_csv(self, csv_path="data/localstorage.csv"):
         self.prices_df.to_csv(csv_path)
 
-    # def recurring_timer(self):
-    #     """Increment counter"""
-    #
-    #     self.counter += 1
-    #     self.counter_label.setText("Counter: %d" % self.counter)
+    def describe_data(self):
+        if self.prices_df is not None:
+            _logger.info(self.prices_df.describe())
