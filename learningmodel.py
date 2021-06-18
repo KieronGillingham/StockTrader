@@ -1,20 +1,25 @@
 # Logging
+import calendar
 import logging
-
-from sklearn.model_selection import GridSearchCV
 
 _logger = logging.getLogger(__name__)
 
 # General
-from datetime import date
+from datetime import date, datetime
 
 # Data manipulation
 import pandas as pd
 import numpy as np
+
+# Machine Learning
 from sklearn.linear_model import LinearRegression
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
+from sklearn.model_selection import GridSearchCV
+
+# Persistance
+from joblib import dump, load
 
 class LearningModel():
 
@@ -29,7 +34,31 @@ class LearningModel():
         self.data = data
         self.model = None
 
-    def predict(self, stock, prediction_period='NEXTMONTH'):
+    def train_model(self, persist_location=None):
+        self.date_decomposed_mlp_model_training(self.data)
+
+        if self.model is not None:
+            if persist_location is not None:
+                try:
+                    dump(self.model, persist_location)
+                except FileNotFoundError as ex:
+                    _logger.error(f"Persist location for model could not be found: {ex}")
+                except Exception as ex:
+                    _logger.error(ex)
+
+            return self.model
+
+        return None
+
+    def load_model(self, model_location):
+        try:
+            self.model = load(model_location)
+        except FileNotFoundError as ex:
+            _logger.error(f"Persist location for model could not be found: {ex}")
+        except Exception as ex:
+            _logger.error(ex)
+
+    def get_predictions(self, stock : str, prediction_period='NEXTMONTH'):
 
         _logger.debug(f"Loaded data shape: {self.data.shape}")
 
@@ -47,8 +76,6 @@ class LearningModel():
         _logger.debug(f"Latest date: {latest_date_stamp} / {date.fromtimestamp(latest_date_stamp)}")
         _logger.debug(f"Prediction date ({prediction_period}): {prediction_date_stamp} / {date.fromtimestamp(prediction_date_stamp)}")
 
-        print(self.deconstruct_date([latest_date_stamp, prediction_date_stamp]))
-
         #return self.linear_model_prediction(stock, prediction_date_stamp)
         #return self.mlp_model_prediction(stock, prediction_date_stamp)
 
@@ -57,11 +84,39 @@ class LearningModel():
         # return self.naive_rolling_mlp_model_prediction(stock, prediction_date_stamp, latest_date_stamp)
         if self.model is None:
             self.date_decomposed_mlp_model_training()
-        dates = [(latest_date_stamp + (i * 604800)) for i in range(0, 5)]
+        dates = [(latest_date_stamp + (i * 86400)) for i in range(0, 35)]
         predictions = self.model.predict(self.deconstruct_date(dates))
+        #predictions = self.scaler.inverse_transform(predictions)
         print(predictions)
 
         return pd.DataFrame(data=predictions, index=dates, columns=self.data.columns[:30])[f"{stock}_close"]
+
+    def get_value(self, stock: str, prediction_date: date):
+        _logger.debug(f"Getting value of stock {stock} on date {prediction_date}.")
+
+        if not isinstance(stock, str):
+            raise TypeError("Stock must be a string of a stock symbol: I.E. GOOG")
+        elif not self._check_data():
+            _logger.error("Error with prediction model.")
+            return
+
+        prediction_date_stamp = calendar.timegm(prediction_date.timetuple())
+        earliest_date_stamp = self.data.index.min()
+        latest_date_stamp = self.data.index.max()
+
+        _logger.debug(f"Latest date: {latest_date_stamp} / {date.fromtimestamp(latest_date_stamp)}")
+        _logger.debug(f"Prediction date: {prediction_date_stamp} / {date.fromtimestamp(prediction_date_stamp)}")
+
+        if prediction_date_stamp < earliest_date_stamp:
+            _logger.warning("Prediction date earlier than historical data.")
+
+        if prediction_date_stamp < latest_date_stamp:
+            stock_data = self.data[f"{stock}_close"]
+            print("stock_data:", stock_data)
+            print("xp:", stock_data.index)
+            print("fp:", stock_data.values)
+            print("pred_date_stamp:", prediction_date_stamp)
+            return np.interp(prediction_date_stamp, stock_data.index, stock_data.values)
 
     def linear_model_prediction(self, stock, prediction_date_stamp):
         latest_date_stamp = self.data.index.max()
@@ -196,19 +251,19 @@ class LearningModel():
         _logger.debug(y)
 
 
-        #
-        # # Scaling
+
+        # Scaling
         # _logger.debug("Scaling (y)")
-        # scaler = StandardScaler()
-        # scaler.fit(y)
-        # y = scaler.transform(y)
+        # self.scaler = StandardScaler()
+        # self.scaler.fit(y)
+        # y = self.scaler.transform(y)
         # _logger.debug(y)
-        #
+
         params = [
             {
-                "random_state": [98629],
+                "random_state": [98630],
                 "solver": ["adam"],
-                "hidden_layer_sizes": [(10, 5), (10, 5, 10), (10, 5, 2), (40, 60, 40)],
+                "hidden_layer_sizes": [(10, 5), (10, 5, 10), (10, 5, 2), (40, 60, 40), (20)],
                 "max_iter": [500],
                 "verbose": [True]
             }
@@ -216,6 +271,9 @@ class LearningModel():
 
         regressor = GridSearchCV(MLPRegressor(), params)
         regressor.fit(x, y)
+
+        print(regressor.best_params_)
+
         self.model = regressor
 
         #
@@ -335,9 +393,28 @@ class LearningModel():
             _logger.error("No model exists.")
             return
 
+        total = 0
+
         for investment in investments:
             if not isinstance(investment, tuple):
                 _logger.error(f"Investment format incorrect - Not a tuple: {investment}")
                 return
-            else:
-                return
+            try:
+                (stock, count, transaction_date) = investment
+                print(investment)
+                result = self.get_value(stock, transaction_date) * count
+                print(f"{stock} investment returned: {result}.")
+                total += result
+
+            except Exception as ex:
+                _logger.error(ex)
+
+        return total
+            # purchase_price = stock.close[purchasedate] * purchase_
+
+            # BuyCost = StockPrice[DateOfPurchase] * SharesBrought
+            # SellCost = StockPrice[DateOfSell] * SharesSold
+            # Profit = SellCost - BuyCost
+            # Profit(P) = ((SellPrice * SharesSold) - SellCom) - ((BuyPrice * SharesBrought) + BuyCom)
+
+            # Selling price - purchase price
