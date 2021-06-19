@@ -13,7 +13,7 @@ from typing import List
 # GUI
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, \
     QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit, QTabWidget, QMessageBox, QBoxLayout, QDateEdit
-from PyQt5.QtCore import QTimer, QThreadPool, QDateTime, QDate
+from PyQt5.QtCore import QTimer, QThreadPool, QDateTime, QDate, pyqtSignal
 
 # Threading
 from stockthreading import Worker
@@ -306,7 +306,9 @@ class MainWindow(QMainWindow):
 
         self.forecast_tab_layout.addStretch()
 
-        self.forecast_tab_layout.addWidget(QLabel("Calculation Result"))
+        self.forecast_result = QLabel("Calculation Result")
+
+        self.forecast_tab_layout.addWidget(self.forecast_result)
 
         self.reset_transactions()
 
@@ -417,18 +419,6 @@ class MainWindow(QMainWindow):
                 self.draw_single_stock(self.filter_combobox.itemData(value))
                 self.make_prediction()
 
-    def calculate_investments(self):
-        transactions = self.get_transactions()
-        # Create list of tuples of format:
-        # (
-        #   Stock symbol,
-        #   Proposed number of shares purchased/sold,
-        #   Proposed date of the transaction
-        # )
-        transaction_list = [(t.combobox.currentData(), t.value, t.date.date.toPyDate()) for t in transactions]
-
-        print(learning_model.calculate_return(transaction_list))
-
     # def recurring_timer(self):
     #     """Increment counter"""
     #
@@ -487,7 +477,7 @@ class MainWindow(QMainWindow):
     def add_transaction(self, count=1):
         for i in range(0,count):
             transaction = QTransaction(stock_data.stockdict)
-
+            transaction.runupdate.connect(self.calculate_investments)
             self.forecast_tab_layout.insertWidget(self.forecast_tab_layout.count()-3, transaction, stretch=0)
 
     def get_transactions(self):
@@ -497,6 +487,17 @@ class MainWindow(QMainWindow):
         for transaction in self.get_transactions():
             transaction.remove_transaction()
         self.add_transaction(3)
+
+    def calculate_investments(self):
+        transactions = self.get_transactions()
+        transaction_list = [t.total for t in transactions]
+        # Create list of tuples of format:
+        # (
+        #   Stock symbol,
+        #   Proposed number of shares purchased/sold,
+        #   Proposed date of the transaction
+        # )
+        self.forecast_result.setText(f"Total: £{'%.2f' % sum(transaction_list)}")
 
     def register_form(self, username, password, reenter_password):
         """
@@ -516,9 +517,13 @@ class MainWindow(QMainWindow):
         # Display a returned message to the user.
         self.show_dialog("Registration", message)
 
+
 class QTransaction(QWidget):
+    runupdate = pyqtSignal()
     def __init__(self, symbols, *args, **kwargs):
         super(QTransaction, self).__init__(*args, **kwargs)
+        self.total = 0
+
         self.layout = QHBoxLayout()
 
         combobox_label = QLabel("Stock:")
@@ -528,20 +533,23 @@ class QTransaction(QWidget):
         self.combobox.currentIndexChanged.connect(self.update_price)
         self.layout.addWidget(self.combobox, 2)
 
-        self.stocksymbol_label = QLabel("(STOCK)")
+        self.stocksymbol_label = QLabel()
         self.layout.addWidget(self.stocksymbol_label, 1)
 
         self.value = QSpinBox()
+        self.value.setRange(-10000, 10000)
+        self.value.valueChanged.connect(self.update_price)
         self.layout.addWidget(self.value, 1)
 
-        self.sharesprice_label = QLabel("shares at £xxx /share")
+        self.sharesprice_label = QLabel()
         self.layout.addWidget(self.sharesprice_label, 1)
 
         self.date = QDateEdit()
         self.date.setDate(QDate.currentDate())
+        self.date.dateChanged.connect(self.update_price)
         self.layout.addWidget(self.date, 3)
 
-        self.total_label = QLabel("Total: £xxx")
+        self.total_label = QLabel()
         self.layout.addWidget(self.total_label, 1)
 
         self.remove = QPushButton("❌")
@@ -553,6 +561,7 @@ class QTransaction(QWidget):
             self.set_symbols(symbols)
 
     def update_price(self):
+
         stocksymbol = self.combobox.currentData()
         self.stocksymbol_label.setText(f"({stocksymbol})")
         value = self.value.value()
@@ -561,8 +570,12 @@ class QTransaction(QWidget):
         prediction_date_stamp = calendar.timegm(transaction_date.timetuple())
         price = learning_model.get_value(stocksymbol, transaction_date)
         if price is not None:
-            self.sharesprice_label.setText(str(price))
-            self.total_label.setText(str(price * value))
+
+            self.sharesprice_label.setText(f"shares at £{'%.2f' % price} /share")
+            self.total = price * value
+            self.total_label.setText(f"Total: £{'%.2f' % self.total}")
+
+        self.runupdate.emit()
 
     def remove_transaction(self):
         self.setParent(None)
