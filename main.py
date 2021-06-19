@@ -165,11 +165,19 @@ class MainWindow(QMainWindow):
         self.vbox_data.addWidget(wid)
 
         wid = QPushButton("Save data to file")
-        wid.released.connect(self.save_data_to_file)
+        wid.released.connect(stock_data.save_to_csv)
         self.vbox_data.addWidget(wid)
 
         wid = QPushButton("Load data from file")
         wid.released.connect(self.load_data_from_file)
+        self.vbox_data.addWidget(wid)
+
+        wid = QPushButton("Train model")
+        wid.released.connect(lambda: learning_model.train_model(persist_location="data/trainedmodel"))
+        self.vbox_data.addWidget(wid)
+
+        wid = QPushButton("Load model")
+        wid.released.connect(lambda: learning_model.load_model(model_location="data/trainedmodel"))
         self.vbox_data.addWidget(wid)
 
         userpage_button = QPushButton("User")
@@ -405,8 +413,9 @@ class MainWindow(QMainWindow):
     def filter_changed(self, value):
         _logger.debug(f"{self.filter_combobox.itemText(value)} ({self.filter_combobox.itemData(value)}) selected.")
         if self.filter_combobox.itemData(value) is not None:
-            self.draw_single_stock(self.filter_combobox.itemData(value))
-            self.make_prediction()
+            if learning_model.model is not None:
+                self.draw_single_stock(self.filter_combobox.itemData(value))
+                self.make_prediction()
 
     def calculate_investments(self):
         transactions = self.get_transactions()
@@ -440,10 +449,6 @@ class MainWindow(QMainWindow):
                 self.mainChart.axes.plot(prediction.iloc(axis=1)[i], linestyle='--', color=p[i].get_color())
 
         self.mainChart.draw()
-
-
-    def save_data_to_file(self):
-        stock_data.save_to_csv()
 
     def make_prediction(self):
         predictions = learning_model.get_predictions(self.filter_combobox.currentData())
