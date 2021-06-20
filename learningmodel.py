@@ -117,7 +117,14 @@ class LearningModel():
             print("fp:", stock_data.values)
             print("pred_date_stamp:", prediction_date_stamp)
             return np.interp(prediction_date_stamp, stock_data.index, stock_data.values)
-
+        else:
+            if self.model is None:
+                self.date_decomposed_mlp_model_training()
+            predictions = self.model.predict(self.deconstruct_date([prediction_date_stamp]))
+            predictions = self.scaler.inverse_transform(predictions)
+            print(predictions)
+            prediction = pd.DataFrame(data=predictions, index=[prediction_date_stamp], columns=self.data.columns[:30])
+            return prediction[f"{stock}_close"].values[0]
     def linear_model_prediction(self, stock, prediction_date_stamp):
         latest_date_stamp = self.data.index.max()
 
