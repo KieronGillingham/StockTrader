@@ -86,7 +86,7 @@ class LearningModel():
             self.date_decomposed_mlp_model_training()
         dates = [(latest_date_stamp + (i * 86400)) for i in range(0, 35)]
         predictions = self.model.predict(self.deconstruct_date(dates))
-        #predictions = self.scaler.inverse_transform(predictions)
+        predictions = self.scaler.inverse_transform(predictions)
         print(predictions)
 
         return pd.DataFrame(data=predictions, index=dates, columns=self.data.columns[:30])[f"{stock}_close"]
@@ -253,17 +253,17 @@ class LearningModel():
 
 
         # Scaling
-        # _logger.debug("Scaling (y)")
-        # self.scaler = StandardScaler()
-        # self.scaler.fit(y)
-        # y = self.scaler.transform(y)
+        _logger.debug("Scaling (y)")
+        self.scaler = StandardScaler()
+        self.scaler.fit(y)
+        y = self.scaler.transform(y)
         # _logger.debug(y)
 
         params = [
             {
                 "random_state": [98630],
-                "solver": ["adam"],
-                "hidden_layer_sizes": [(10, 5), (10, 5, 10), (10, 5, 2), (40, 60, 40), (20)],
+                "solver": ["lbfgs"],# ["adam", "lbfgs"]
+                "hidden_layer_sizes": [100],#[(10, 5)], #10, 5, 10), (10, 5, 2), (40, 60, 40), (20)
                 "max_iter": [500],
                 "verbose": [True]
             }
