@@ -1,5 +1,4 @@
 # Logging
-import calendar
 import logging
 _logger = logging.getLogger(__name__)
 log_template = "[%(asctime)s] %(levelname)s %(threadName)s %(name)s: %(message)s"
@@ -8,6 +7,7 @@ logging.basicConfig(level=logging.DEBUG, format=log_template, handlers= [logging
 # General
 import sys
 from datetime import date, datetime
+import calendar
 from typing import List
 
 # GUI
@@ -16,7 +16,7 @@ from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBo
 from PyQt5.QtCore import QTimer, QThreadPool, QDateTime, QDate, pyqtSignal
 
 # Threading
-from stockthreading import Worker
+from pyqtthreading import Worker
 
 # Stock data
 from stockdata import StockData
@@ -88,6 +88,31 @@ class MainWindow(QMainWindow):
 
         # Display the main window
         self.show()
+
+    def thread(self, function, in_progress=None, on_finish=None, *args, **kwargs):
+        # Pass the function to execute
+        worker = Worker(function) # Any other args, kwargs are passed to the run function
+
+        # Connect on_finish method to signal
+        if on_finish is not None:
+            worker.signals.finished.connect(on_finish)
+
+        # Execute
+        self.threadpool.start(worker)
+
+    def train_model(self, persist_location=None):
+        if learning_model is not None:
+            self.clear_chart()
+            fig = Figure()
+            fig.text(0,0,"Loading...")
+            self.mainChart.draw(fig)
+            self.mainChart.figure
+            self.thread(function=learning_model.train_model, on_finish=self.model_trained, persist_location=persist_location)
+        else:
+            _logger.error("No learning model initialised.")
+
+    def model_trained(self):
+        self.clear_chart()
 
     def show_not_available_dialog(self):
         self.show_dialog("Registration Failure", "Registration cannot be completed at this time.")
@@ -173,7 +198,7 @@ class MainWindow(QMainWindow):
         self.vbox_data.addWidget(wid)
 
         wid = QPushButton("Train model")
-        wid.released.connect(lambda: learning_model.train_model(persist_location="data/trainedmodel"))
+        wid.released.connect(lambda: self.train_model(persist_location="data/trainedmodel"))
         self.vbox_data.addWidget(wid)
 
         wid = QPushButton("Load model")
@@ -183,15 +208,6 @@ class MainWindow(QMainWindow):
         userpage_button = QPushButton("User")
         userpage_button.released.connect(lambda: self.change_page("User"))
         hbox_title.addWidget(userpage_button)
-
-        wid = QLabel("Invest Amount (Stocks):")
-        self.vbox_prediction.addWidget(wid)
-        self.stock_invested = QSpinBox()
-        self.vbox_prediction.addWidget(self.stock_invested)
-
-        wid = QPushButton("Predict Profit")
-        wid.pressed.connect(self.make_prediction)
-        self.vbox_prediction.addWidget(wid)
 
         wid = QLabel("")
         self.vbox_prediction.addWidget(wid)
