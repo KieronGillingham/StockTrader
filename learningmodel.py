@@ -1,11 +1,10 @@
 # Logging
-import calendar
 import logging
-
 _logger = logging.getLogger(__name__)
 
 # General
-from datetime import date, datetime
+from datetime import date
+import calendar
 
 # Data manipulation
 import pandas as pd
@@ -23,32 +22,41 @@ from joblib import dump, load
 
 class LearningModel():
 
-    PERIODS = {
+    periods = {
         "NEXTDAY": 86400,  # 60*60*24 (One day)
         "NEXTWEEK": 604800,  # 60*60*24 * 7
         "NEXTTWOWEEK": 1209600, # 60*60*24 * 14
         "NEXTMONTH": 2592000  # 60*60*24 * 30
     }
 
+    # Seed for repeatability of random number generation
+    seed = 98628
+
+    # Column names for deconstructed dates.
+    datecolumns = ['year', 'month', 'day', 'weekday', 'week', 'dayofyear']
+
     def __init__(self, data=None, *args, **kwargs):
         self.data = data
         self.model = None
 
-    def train_model(self, persist_location=None):
-        self.date_decomposed_mlp_model_training(self.data)
+    def train_model(self, persist_location=None, *args, **kwargs):
+        try:
+            self.train_mlp_model(self.data)
+        except Exception as ex:
+            _logger.error(ex)
 
         if self.model is not None:
+            _logger.debug("Model trained.")
             if persist_location is not None:
                 try:
                     dump(self.model, persist_location)
+                    _logger.info(f"Model persisted to {persist_location}.")
                 except FileNotFoundError as ex:
                     _logger.error(f"Persist location for model could not be found: {ex}")
                 except Exception as ex:
                     _logger.error(ex)
-
-            return self.model
-
-        return None
+        else:
+            _logger.error("Problem training model.")
 
     def load_model(self, model_location):
         try:
@@ -64,15 +72,15 @@ class LearningModel():
 
         if not isinstance(stock, str):
             raise TypeError("Stock must be a string of a stock symbol: I.E. GOOG")
-        elif prediction_period not in self.PERIODS:
-            _logger.error(f"Prediction period '{prediction_period}' not recognised. Must be one of: {[*self.PERIODS]}")
+        elif prediction_period not in self.periods:
+            _logger.error(f"Prediction period '{prediction_period}' not recognised. Must be one of: {[*self.periods]}")
             return
         elif not self._check_data():
             _logger.error("Error with prediction model.")
             return
 
         latest_date_stamp = self.data.index.max()
-        prediction_date_stamp = latest_date_stamp + self.PERIODS[prediction_period]
+        prediction_date_stamp = latest_date_stamp + self.periods[prediction_period]
         _logger.debug(f"Latest date: {latest_date_stamp} / {date.fromtimestamp(latest_date_stamp)}")
         _logger.debug(f"Prediction date ({prediction_period}): {prediction_date_stamp} / {date.fromtimestamp(prediction_date_stamp)}")
 
@@ -80,16 +88,16 @@ class LearningModel():
         #return self.mlp_model_prediction(stock, prediction_date_stamp)
 
         prediction_date_stamp = latest_date_stamp
-        latest_date_stamp = prediction_date_stamp - self.PERIODS[prediction_period]
+        latest_date_stamp = prediction_date_stamp - self.periods[prediction_period]
         # return self.naive_rolling_mlp_model_prediction(stock, prediction_date_stamp, latest_date_stamp)
         if self.model is None:
-            self.date_decomposed_mlp_model_training()
+            self.train_mlp_model()
         dates = [(latest_date_stamp + (i * 86400)) for i in range(0, 35)]
         predictions = self.model.predict(self.deconstruct_date(dates))
         predictions = self.scaler.inverse_transform(predictions)
         print(predictions)
 
-        return pd.DataFrame(data=predictions, index=dates, columns=self.data.columns[:30])[f"{stock}_close"]
+        return pd.DataFrame(data=predictions, index=dates, columns=self.data.columns[:60])[f"{stock}_close"]
 
     def get_value(self, stock: str, prediction_date: date):
         _logger.debug(f"Getting value of stock {stock} on date {prediction_date}.")
@@ -119,159 +127,166 @@ class LearningModel():
             return np.interp(prediction_date_stamp, stock_data.index, stock_data.values)
         else:
             if self.model is None:
-                self.date_decomposed_mlp_model_training()
+                self.train_mlp_model()
             predictions = self.model.predict(self.deconstruct_date([prediction_date_stamp]))
             predictions = self.scaler.inverse_transform(predictions)
             print(predictions)
-            prediction = pd.DataFrame(data=predictions, index=[prediction_date_stamp], columns=self.data.columns[:30])
+            prediction = pd.DataFrame(data=predictions, index=[prediction_date_stamp], columns=self.data.columns[:60])
             return prediction[f"{stock}_close"].values[0]
-    def linear_model_prediction(self, stock, prediction_date_stamp):
-        latest_date_stamp = self.data.index.max()
+    # def linear_model_prediction(self, stock, prediction_date_stamp):
+    #     latest_date_stamp = self.data.index.max()
+    #
+    #     y = self.data[f"{stock}_close"].values
+    #     x = np.array(self.data.index)
+    #     _logger.debug(y)
+    #     _logger.debug(x)
+    #
+    #     x = x.reshape(-1, 1)
+    #     #for i in range(0, len(self.prices_df.columns)):
+    #     #     y = self.prices_df.iloc[:, i].values
+    #     model = LinearRegression()
+    #     model.fit(x, y)
+    #     prediction = model.predict([[prediction_date_stamp]])
+    #
+    #     _logger.debug(f"{self.data[f'{stock}_close'][latest_date_stamp]} -> {prediction[0]}")
+    #
+    #     pred_df = pd.DataFrame([self.data[f"{stock}_close"][latest_date_stamp],prediction[0]], columns=[f"{stock}_close"], index=[latest_date_stamp, prediction_date_stamp])
+    #
+    #     return pred_df
+    #
+    # def naive_rolling_mlp_model_prediction(self, stock, prediction_date_stamp, latest_date_stamp=None):
+    #
+    #     print(latest_date_stamp)
+    #     print(prediction_date_stamp)
+    #
+    #     self.data.sort_index(inplace=True)
+    #
+    #     if latest_date_stamp is None:
+    #         latest_date_stamp = self.data.index.max()
+    #
+    #     earliest_date_stamp = self.data.index.min()
+    #
+    #     historical_data = self.data.loc[:latest_date_stamp]
+    #     _logger.debug(f"Historical Data: {historical_data}")
+    #
+    #     test_data = self.data.loc[latest_date_stamp:]
+    #     _logger.debug(f"Test Data: {test_data}")
+    #
+    #     # Scale x dates by subtracting the min
+    #     x = np.array([x - earliest_date_stamp for x in historical_data.index])
+    #     x = x.reshape(-1, 1)
+    #     prediction_dates = [[x - earliest_date_stamp] for x in test_data.index]
+    #     y = historical_data.values
+    #     _logger.debug(y)
+    #     _logger.debug(x)
+    #
+    #     # Scaling
+    #     _logger.debug("Scaling (y)")
+    #     scaler = StandardScaler()
+    #     scaler.fit(y)
+    #     y = scaler.transform(y)
+    #     _logger.debug(y)
+    #
+    #     params = [
+    #         {
+    #             "random_state": [98629],
+    #             "solver": ["adam"],
+    #             "hidden_layer_sizes": [(10, 5), (10, 5, 10), (10, 5, 2)],
+    #             "max_iter": [500],
+    #             "verbose": [True]
+    #         }
+    #     ]
+    #
+    #     model = MLPRegressor()
+    #     regressor = GridSearchCV(model, params)
+    #
+    #     predictions = []
+    #     normed_latest_date_stamp = latest_date_stamp - earliest_date_stamp
+    #
+    #     prediction_dates.pop(0)
+    #
+    #
+    #     for prediction_date in prediction_dates:
+    #         if prediction_date[0] == normed_latest_date_stamp:
+    #             continue
+    #         regressor.fit(x, y)
+    #
+    #         self.model = regressor
+    #
+    #         print(regressor.best_params_)
+    #
+    #         # Single date prediction
+    #         # prediction = model.predict([[prediction_date_stamp]])
+    #         # _logger.debug(f"{self.data.loc[latest_date_stamp].values} -> {prediction[0]}")
+    #         # pred_df = pd.DataFrame([self.data.loc[latest_date_stamp].values, prediction[0]],
+    #         #                       columns=self.data.columns, index=[latest_date_stamp, prediction_date_stamp])
+    #
+    #         prediction = regressor.predict([prediction_date])
+    #         predictions.append(prediction[0])
+    #         #x = np.append(x, prediction_date, axis=0)
+    #         x = np.concatenate([x, [prediction_date]], axis=0)
+    #         y = np.concatenate([y, [prediction[0]]], axis=0)
+    #
+    #     predictions = scaler.inverse_transform(predictions)
+    #     _logger.debug(f"Test Data: {test_data}")
+    #     _logger.debug(f"Predictions: {predictions}")
+    #     unscaled_prediction_dates = [(i[0] + earliest_date_stamp) for i in prediction_dates]
+    #     pred_df = pd.DataFrame(predictions, columns=self.data.columns, index=unscaled_prediction_dates)
+    #
+    #     # Filter by stock
+    #     pred_df = pred_df[f"{stock}_close"]
+    #     _logger.debug(pred_df)
+    #     # Using mean for naïve forecasting
+    #     _logger.debug(f"Historical data mean: {historical_data[f'{stock}_close'].mean()}")
+    #
+    #     return pred_df
 
-        y = self.data[f"{stock}_close"].values
-        x = np.array(self.data.index)
-        _logger.debug(y)
-        _logger.debug(x)
-
-        x = x.reshape(-1, 1)
-        #for i in range(0, len(self.prices_df.columns)):
-        #     y = self.prices_df.iloc[:, i].values
-        model = LinearRegression()
-        model.fit(x, y)
-        prediction = model.predict([[prediction_date_stamp]])
-
-        _logger.debug(f"{self.data[f'{stock}_close'][latest_date_stamp]} -> {prediction[0]}")
-
-        pred_df = pd.DataFrame([self.data[f"{stock}_close"][latest_date_stamp],prediction[0]], columns=[f"{stock}_close"], index=[latest_date_stamp, prediction_date_stamp])
-
-        return pred_df
-
-    def naive_rolling_mlp_model_prediction(self, stock, prediction_date_stamp, latest_date_stamp=None):
-
-        print(latest_date_stamp)
-        print(prediction_date_stamp)
-
-        self.data.sort_index(inplace=True)
-
-        if latest_date_stamp is None:
-            latest_date_stamp = self.data.index.max()
-
-        earliest_date_stamp = self.data.index.min()
-
-        historical_data = self.data.loc[:latest_date_stamp]
-        _logger.debug(f"Historical Data: {historical_data}")
-
-        test_data = self.data.loc[latest_date_stamp:]
-        _logger.debug(f"Test Data: {test_data}")
-
-        # Scale x dates by subtracting the min
-        x = np.array([x - earliest_date_stamp for x in historical_data.index])
-        x = x.reshape(-1, 1)
-        prediction_dates = [[x - earliest_date_stamp] for x in test_data.index]
-        y = historical_data.values
-        _logger.debug(y)
-        _logger.debug(x)
-
-        # Scaling
-        _logger.debug("Scaling (y)")
-        scaler = StandardScaler()
-        scaler.fit(y)
-        y = scaler.transform(y)
-        _logger.debug(y)
-
-        params = [
-            {
-                "random_state": [98629],
-                "solver": ["adam"],
-                "hidden_layer_sizes": [(10, 5), (10, 5, 10), (10, 5, 2)],
-                "max_iter": [500],
-                "verbose": [True]
-            }
-        ]
-
-        model = MLPRegressor()
-        regressor = GridSearchCV(model, params)
-
-        predictions = []
-        normed_latest_date_stamp = latest_date_stamp - earliest_date_stamp
-
-        prediction_dates.pop(0)
-
-
-        for prediction_date in prediction_dates:
-            if prediction_date[0] == normed_latest_date_stamp:
-                continue
-            regressor.fit(x, y)
-
-            self.model = regressor
-
-            print(regressor.best_params_)
-
-            # Single date prediction
-            # prediction = model.predict([[prediction_date_stamp]])
-            # _logger.debug(f"{self.data.loc[latest_date_stamp].values} -> {prediction[0]}")
-            # pred_df = pd.DataFrame([self.data.loc[latest_date_stamp].values, prediction[0]],
-            #                       columns=self.data.columns, index=[latest_date_stamp, prediction_date_stamp])
-
-            prediction = regressor.predict([prediction_date])
-            predictions.append(prediction[0])
-            #x = np.append(x, prediction_date, axis=0)
-            x = np.concatenate([x, [prediction_date]], axis=0)
-            y = np.concatenate([y, [prediction[0]]], axis=0)
-
-        predictions = scaler.inverse_transform(predictions)
-        _logger.debug(f"Test Data: {test_data}")
-        _logger.debug(f"Predictions: {predictions}")
-        unscaled_prediction_dates = [(i[0] + earliest_date_stamp) for i in prediction_dates]
-        pred_df = pd.DataFrame(predictions, columns=self.data.columns, index=unscaled_prediction_dates)
-
-        # Filter by stock
-        pred_df = pred_df[f"{stock}_close"]
-        _logger.debug(pred_df)
-        # Using mean for naïve forecasting
-        _logger.debug(f"Historical data mean: {historical_data[f'{stock}_close'].mean()}")
-
-        return pred_df
-
-    def date_decomposed_mlp_model_training(self, data=None):
-
+    def train_mlp_model(self, data=None):
+        """
+        Train a Multilayer Perceptron model to forecast stock prices. The model is
+        :param data: The dataset to be used for training.
+        :return: None.
+        """
+        # Use object dataset if no alternative provided.
         if data is None:
             data = self.data
 
+        # Stop if no dataset is available for training.
         if data is None:
-            _logger.error("Data is not set for training.")
+            _logger.error("No dataset available for training.")
             return
 
+        # Sort the dataset chronologically.
         data.sort_index(inplace=True)
-        earliest_date_stamp = data.index.min()
-        latest_date_stamp = data.index.max()
 
-        _logger.debug(f"Preparing to train model between {date.fromtimestamp(earliest_date_stamp)} and "
-                      f"{date.fromtimestamp(latest_date_stamp)}.")
+        # Get datestamps earliest and latest records from the data.
+        earliest_datestamp = data.index.min()
+        latest_datestamp = data.index.max()
+        _logger.debug(f"Preparing to train model on data between {date.fromtimestamp(earliest_datestamp)} and "
+                      f"{date.fromtimestamp(latest_datestamp)}.")
 
-        timecolumns = ['year', 'month', 'day', 'weekday', 'week', 'dayofyear']
+        # Get independent variables for model input (dates)
+        x = data[self.datecolumns]
+        _logger.debug(f"X data size: {x.shape}")
 
-        x = data[timecolumns]
-        _logger.debug(x)
-        # x = x.reshape(-1, 1)
-        y = data.drop(timecolumns, 1)
-        _logger.debug(y)
+        # Get dependent variables for model output (stock prices)
+        y = data.drop(self.datecolumns, 1)
+        _logger.debug(f"Y data size: {y.shape}")
 
-
-
-        # Scaling
-        _logger.debug("Scaling (y)")
+        # Create data scaler - Keep reference for later unscaling
         self.scaler = StandardScaler()
+
+        # Scale y
         self.scaler.fit(y)
         y = self.scaler.transform(y)
-        # _logger.debug(y)
-
+        
+        _logger.debug("Beginning hyperparameter tuning and model training.")
         params = [
             {
-                "random_state": [98630],
-                "solver": ["lbfgs"],# ["adam", "lbfgs"]
-                "hidden_layer_sizes": [100],#[(10, 5)], #10, 5, 10), (10, 5, 2), (40, 60, 40), (20)
-                "max_iter": [500],
+                "random_state": [self.seed],
+                "solver": ["lbfgs"],
+                "hidden_layer_sizes": [(2), (5), (5, 5), (5, 10), (20), (10, 10), (10, 20), (40, 40), (50, 100), (100, 200), (200, 300), (20, 40, 20), (20, 50, 20), (50, 100, 50), (20, 40, 40, 20), (10, 20, 20, 10), (10, 20, 20, 20, 10)],
+                "max_iter": [200],
                 "verbose": [True]
             }
         ]
@@ -282,45 +297,6 @@ class LearningModel():
         print(regressor.best_params_)
 
         self.model = regressor
-
-        #
-        #
-        # for prediction_date in prediction_dates:
-        #     if prediction_date[0] == normed_latest_date_stamp:
-        #         continue
-        #
-        #
-        #
-        #
-        #     print(regressor.best_params_)
-        #
-        #     # Single date prediction
-        #     # prediction = model.predict([[prediction_date_stamp]])
-        #     # _logger.debug(f"{self.data.loc[latest_date_stamp].values} -> {prediction[0]}")
-        #     # pred_df = pd.DataFrame([self.data.loc[latest_date_stamp].values, prediction[0]],
-        #     #                       columns=self.data.columns, index=[latest_date_stamp, prediction_date_stamp])
-        #
-        #     prediction = regressor.predict([prediction_date])
-        #     predictions.append(prediction[0])
-        #     #x = np.append(x, prediction_date, axis=0)
-        #     x = np.concatenate([x, [prediction_date]], axis=0)
-        #     y = np.concatenate([y, [prediction[0]]], axis=0)
-        #
-        # predictions = scaler.inverse_transform(predictions)
-        # _logger.debug(f"Test Data: {test_data}")
-        # _logger.debug(f"Predictions: {predictions}")
-        # unscaled_prediction_dates = [(i[0] + earliest_date_stamp) for i in prediction_dates]
-        # pred_df = pd.DataFrame(predictions, columns=self.data.columns, index=unscaled_prediction_dates)
-        #
-        #
-        #
-        # # Filter by stock
-        # pred_df = pred_df[f"{stock}_close"]
-        # _logger.debug(pred_df)
-        # # Using mean for naïve forecasting
-        # _logger.debug(f"Historical data mean: {historical_data[f'{stock}_close'].mean()}")
-        #
-        # return pred_df
 
     def deconstruct_date(self, datestamps):
 
@@ -339,8 +315,7 @@ class LearningModel():
         ]
         print(deconstructed_dates)
 
-        columns = ['year', 'month', 'day', 'weekday', 'week', 'dayofyear']
-        dates = pd.DataFrame(data=deconstructed_dates, index=datestamps, columns=columns)
+        dates = pd.DataFrame(data=deconstructed_dates, index=datestamps, columns=self.datecolumns)
         return dates
 
         # print(pd.to_datetime(input_dates, format="%d/%m/%Y"))
@@ -417,11 +392,3 @@ class LearningModel():
                 _logger.error(ex)
 
         return total
-            # purchase_price = stock.close[purchasedate] * purchase_
-
-            # BuyCost = StockPrice[DateOfPurchase] * SharesBrought
-            # SellCost = StockPrice[DateOfSell] * SharesSold
-            # Profit = SellCost - BuyCost
-            # Profit(P) = ((SellPrice * SharesSold) - SellCom) - ((BuyPrice * SharesBrought) + BuyCom)
-
-            # Selling price - purchase price
