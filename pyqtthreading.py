@@ -6,7 +6,7 @@ _logger = logging.getLogger(__name__)
 import sys, traceback
 
 # GUI
-from PyQt5.QtCore import Qt, QTimer, QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
+from PyQt5.QtCore import QRunnable, pyqtSlot, pyqtSignal, QObject
 
 # Signals
 class WorkerSignals(QObject):
