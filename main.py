@@ -47,11 +47,15 @@ class MainWindow(QMainWindow):
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
 
+        # Threading
+        self.threadpool = QThreadPool()
+        _logger.debug("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
+
         # Set window appearance
         self.setWindowTitle("Intelligent Stock Trader")
         self.setMinimumSize(1024, 512)
 
-        # Program root widget for storing GUI pages
+        # Root widget for storing GUI pages
         self.root = QStackedWidget()
 
         # List pages and assign indicies
@@ -82,10 +86,6 @@ class MainWindow(QMainWindow):
 
         self.change_page("Login")
 
-        # Treadpool
-        self.threadpool = QThreadPool()
-        _logger.debug("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
-
         # Display the main window
         self.show()
 
@@ -103,10 +103,9 @@ class MainWindow(QMainWindow):
     def train_model(self, persist_location=None):
         if learning_model is not None:
             self.clear_chart()
-            fig = Figure()
-            fig.text(0,0,"Loading...")
-            self.mainChart.draw(fig)
-            self.mainChart.figure
+            self.mainChart.axes.text(0,0,"Loading...")
+            self.mainChart.draw()
+
             self.thread(function=learning_model.train_model, on_finish=self.model_trained, persist_location=persist_location)
         else:
             _logger.error("No learning model initialised.")
@@ -148,6 +147,20 @@ class MainWindow(QMainWindow):
         _logger.info(f"Signing out {self.user['username']}")
         self.user = None
         self.change_page("Login")
+
+    def get_yahoo_finance_data(self, start_date=None, end_date=None, time_interval='monthly', stocksymbols=None, on_finish=None):
+        # Pass the function to execute
+        worker = Worker(self.load_data_from_yahoo_finance, start_date=start_date, end_date=end_date, time_interval=time_interval, stocksymbols=stocksymbols) # Any other args, kwargs are passed to the run function
+
+        # Connect on_finish method to signal
+        if on_finish is not None:
+            worker.signals.finished.connect(on_finish)
+
+        #worker.signals.result.connect(self.print_output)
+        #worker.signals.progress.connect(self.progress_fn)
+
+        # Execute
+        self.threadpool.start(worker)
 
     def _setup_chart_page(self):
         # Initalise layouts
@@ -599,6 +612,20 @@ class QTransaction(QWidget):
     def set_symbols(self, symbols):
         for n in symbols:
             self.combobox.addItem(n, userData=symbols[n])
+
+    # def thread_complete(self):
+    #     print("THREAD COMPLETE!")
+
+    # def reloadData(self):
+    #     # Pass the function to execute
+    #     worker = Worker(self.load_from_yahoo_finance) # Any other args, kwargs are passed to the run function
+    #     worker.signals.result.connect(self.print_output)
+    #     worker.signals.finished.connect(self.data_loaded)
+    #     worker.signals.progress.connect(self.progress_fn)
+    #
+    #     # Execute
+    #     self.threadpool.start(worker)
+
 
 
 if __name__ == '__main__':
