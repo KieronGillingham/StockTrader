@@ -363,13 +363,15 @@ class MainWindow(QMainWindow):
         _logger.debug("Data loaded")
         self.clear_chart()
         self.filter_combobox.clear()
-        data = stock_data.prices_df
+        data = stock_data.data
 
         if learning_model.set_data(data):
             _logger.debug("Data setup complete.")
 
-        for n in stock_data.stockdict:
-            self.filter_combobox.addItem(n, userData=stock_data.get_symbol(n))
+        print(stock_data.stockdict.keys())
+
+        for stockname in list(stock_data.stockdict.keys()):
+            self.filter_combobox.addItem(stockname, userData=stock_data.get_symbol(stockname))
 
     # Chart drawing
     def clear_chart(self):
@@ -382,7 +384,7 @@ class MainWindow(QMainWindow):
 
         self.clear_chart()
 
-        data = stock_data.prices_df.filter(like=stocksymbol + "_close")
+        data = stock_data.data.filter(like=stocksymbol + "_close")
 
         self.mainChart.axes.plot(data)
         self.mainChart.axes.axis('on')

@@ -362,11 +362,6 @@ class LearningModel():
         elif not isinstance(self.data, pd.DataFrame):
             _logger.error("Dataset is not a dataframe. Please use `set_data()` to recreate the dataframe.")
             return False
-        elif self.data.isnull().any().any():
-            _logger.info(f"{self.data.isnull().sum()} missing values in dataset. Imputing substitute values.")
-            imputer = SimpleImputer()
-            imputer.fit(self.data.index, self.data.values)
-            imputer.transform(self.data.index)
         return True
 
     def calculate_return(self, investments : list):

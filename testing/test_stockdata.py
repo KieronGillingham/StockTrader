@@ -8,6 +8,7 @@ from unittest import TestCase
 from stockdata import StockData
 
 import pandas as pd
+import numpy as np
 
 import os.path as path
 
@@ -40,7 +41,7 @@ class TestStockData(TestCase):
 
     def test_get_symbol(self):
         _logger.info("Testing get_symbol()")
-        self.stock_data.load_stocks(csv_path=self.test_symbols_file)
+        self.stock_data.load_symbols(symbol_csv=self.test_symbols_file)
 
         for n in range(1,10):
             self.assertEqual(self.stock_data.get_symbol(f"Stock{n}"), f"STK.{n}")
@@ -51,7 +52,7 @@ class TestStockData(TestCase):
         self.stock_data.stockdict = None
         self.assertEqual(self.stock_data.stockdict, None)
 
-        self.stock_data.load_stocks(csv_path=self.test_symbols_file)
+        self.stock_data.load_symbols(csv_path=self.test_symbols_file)
         self.assertNotEqual(self.stock_data.stockdict, None)
 
     def test_load_data_from_yahoo_finance(self):
@@ -63,11 +64,23 @@ class TestStockData(TestCase):
     def test_load_from_csv(self):
         self.fail()
 
-    def test_calculate(self):
-        self.fail()
-
-    def test_get_stocknames(self):
-        self.fail()
-
     def test_save_to_csv(self):
         self.fail()
+
+    def test_fill_missing_data(self):
+        good_data = self.stock_data.data
+        self.stock_data.fill_missing_data()
+        self.assertTrue(good_data.equals(self.stock_data.data), "Dataframes are not equal.")
+
+        bad_data = [[34, 56, None], [None, 35, 42], [28, 52, 44]]
+        self.stock_data.data = pd.DataFrame(bad_data)
+        self.assertEqual((3,3), self.stock_data.data.shape)
+        self.assertTrue(self.stock_data.data.isna().any().any(), "Missing values not found in the dataset.")
+        self.assertTrue(np.isnan(self.stock_data.data[0][1]), "Missing value is not NaN.")
+        self.assertTrue(np.isnan(self.stock_data.data[2][0]), "Missing value is not NaN.")
+        self.stock_data.fill_missing_data()
+
+        self.assertFalse(self.stock_data.data.isna().any().any(), "The dataset still contains missing values.")
+        self.assertEqual((3, 3), self.stock_data.data.shape, "The dataset has changed shape.")
+        self.assertEqual(31, self.stock_data.data[0][1], "Imputed value does not match calculated mean '31'.")
+        self.assertEqual(43, self.stock_data.data[2][0], "Imputed value does not match calculated mean '43'.")
