@@ -132,3 +132,6 @@ dmypy.json
 ~$*.docx
 ~$*.xlsx
 ~$*.pptx
+
+# Data
+data/
