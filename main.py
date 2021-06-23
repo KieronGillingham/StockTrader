@@ -6,11 +6,11 @@ logging.basicConfig(level=logging.DEBUG, format=log_template, handlers= [logging
 
 # General
 import sys
-from datetime import date, datetime
 import calendar
+from datetime import date
 from typing import List
 
-# GUI
+# PyQt
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, \
     QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit, QTabWidget, QMessageBox, QBoxLayout, QDateEdit
 from PyQt5.QtCore import QTimer, QThreadPool, QDateTime, QDate, pyqtSignal
@@ -21,25 +21,17 @@ from pyqtthreading import Worker
 # Stock data
 from stockdata import StockData
 
-# Machine learning
-from learningmodel import LearningModel
-
 # Plotting
 import matplotlib
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 matplotlib.use('Qt5Agg')
 
+# Machine learning
+from learningmodel import LearningModel
+
 stock_data = StockData()
 learning_model = LearningModel()
-
-class MplCanvas(FigureCanvasQTAgg):
-    """PyQt canvas for MatPlotLib graphs"""
-
-    def __init__(self, parent=None, width=5, height=4, dpi=100):
-        fig = Figure(figsize=(width, height), dpi=dpi)
-        self.axes = fig.add_subplot(111)
-        super(MplCanvas, self).__init__(fig)
 
 class MainWindow(QMainWindow):
     """ Main window of application"""
@@ -89,6 +81,7 @@ class MainWindow(QMainWindow):
         # Display the main window
         self.show()
 
+    # Threading
     def thread(self, function, in_progress=None, on_finish=None, *args, **kwargs):
         # Pass the function to execute
         worker = Worker(function) # Any other args, kwargs are passed to the run function
@@ -100,28 +93,7 @@ class MainWindow(QMainWindow):
         # Execute
         self.threadpool.start(worker)
 
-    def train_model(self, persist_location=None):
-        if learning_model is not None:
-            self.clear_chart()
-            self.mainChart.axes.text(0,0,"Loading...")
-            self.mainChart.draw()
-
-            self.thread(function=learning_model.train_model, on_finish=self.model_trained, persist_location=persist_location)
-        else:
-            _logger.error("No learning model initialised.")
-
-    def model_trained(self):
-        self.clear_chart()
-
-    def show_not_available_dialog(self):
-        self.show_dialog("Registration Failure", "Registration cannot be completed at this time.")
-
-    def set_user_label(self):
-        if self.user is not None:
-            self.user_label.setText(f"Signed in as: {self.user['username']} | Balance: £{self.user['balance']}")
-        else:
-            self.user_label.setText("No user found.")
-
+    # User
     def sign_in(self, username, password):
         if username == "Guest":
             self.user = self.user_manager.guest_account()
@@ -148,20 +120,13 @@ class MainWindow(QMainWindow):
         self.user = None
         self.change_page("Login")
 
-    def get_yahoo_finance_data(self, start_date=None, end_date=None, time_interval='monthly', stocksymbols=None, on_finish=None):
-        # Pass the function to execute
-        worker = Worker(self.load_data_from_yahoo_finance, start_date=start_date, end_date=end_date, time_interval=time_interval, stocksymbols=stocksymbols) # Any other args, kwargs are passed to the run function
+    def set_user_label(self):
+        if self.user is not None:
+            self.user_label.setText(f"Signed in as: {self.user['username']} | Balance: £{self.user['balance']}")
+        else:
+            self.user_label.setText("No user found.")
 
-        # Connect on_finish method to signal
-        if on_finish is not None:
-            worker.signals.finished.connect(on_finish)
-
-        #worker.signals.result.connect(self.print_output)
-        #worker.signals.progress.connect(self.progress_fn)
-
-        # Execute
-        self.threadpool.start(worker)
-
+    # Page layout
     def _setup_chart_page(self):
         # Initalise layouts
         self.vbox_pagechart = QVBoxLayout()
@@ -372,9 +337,45 @@ class MainWindow(QMainWindow):
     def _setup_help_page(self):
         pass
 
+    # Data loading
+    def get_yahoo_finance_data(self, start_date=None, end_date=None, time_interval='monthly', stocksymbols=None, on_finish=None):
+        self.thread(self.load_data_from_yf)
+        # Pass the function to execute
+        worker = Worker(self.load_data_from_yahoo_finance, start_date=start_date, end_date=end_date, time_interval=time_interval, stocksymbols=stocksymbols) # Any other args, kwargs are passed to the run function
+
+        # Connect on_finish method to signal
+        if on_finish is not None:
+            worker.signals.finished.connect(on_finish)
+
+        #worker.signals.result.connect(self.print_output)
+        #worker.signals.progress.connect(self.progress_fn)
+
+        # Execute
+        self.threadpool.start(worker)
+
+    def load_data_from_yf(self):
+        stock_data.get_yahoo_finance_data(start_date='2019-12-01', end_date='2021-03-01', time_interval='daily', on_finish=self.data_loaded)  # Any other args, kwargs are passed to the run function
+
+    def load_data_from_file(self):
+        self.thread(stock_data.load_from_csv, on_finish=self.data_loaded)
+
+    def data_loaded(self):
+        _logger.debug("Data loaded")
+        self.clear_chart()
+        self.filter_combobox.clear()
+        data = stock_data.prices_df
+
+        if learning_model.set_data(data):
+            _logger.debug("Data setup complete.")
+
+        for n in stock_data.stockdict:
+            self.filter_combobox.addItem(n, userData=stock_data.get_symbol(n))
+
+    # Chart drawing
     def clear_chart(self):
         # Clear existing chart
         self.mainChart.axes.cla()
+        self.mainChart.axes.axis('off')
         self.mainChart.draw()
 
     def draw_single_stock(self, stocksymbol, prediction=None):
@@ -384,6 +385,7 @@ class MainWindow(QMainWindow):
         data = stock_data.prices_df.filter(like=stocksymbol + "_close")
 
         self.mainChart.axes.plot(data)
+        self.mainChart.axes.axis('on')
         if prediction is not None:
             self.mainChart.axes.plot(prediction, linestyle='--')
 
@@ -416,44 +418,6 @@ class MainWindow(QMainWindow):
         # self.mainChart.draw()
 
 
-    def data_loaded(self):
-        _logger.debug("Data loaded")
-        self.clear_chart()
-        self.filter_combobox.clear()
-        data = stock_data.prices_df
-
-        if learning_model.set_data(data):
-            _logger.debug("Data setup complete.")
-
-        for n in stock_data.stockdict:
-            self.filter_combobox.addItem(n, userData=stock_data.get_symbol(n))
-
-        #self.draw_single_stock("TYT.L")
-
-    def load_data_from_yf(self):
-        stock_data.get_yahoo_finance_data(start_date='2019-12-01', end_date='2021-03-01', time_interval='daily', on_finish=self.data_loaded)  # Any other args, kwargs are passed to the run function
-
-    def load_data_from_file(self):
-        # Pass the function to execute
-        worker = Worker(stock_data.load_from_csv)  # Any other args, kwargs are passed to the run function
-        worker.signals.finished.connect(self.data_loaded)
-
-        # Execute
-        return self.threadpool.start(worker)
-
-    def filter_changed(self, value):
-        _logger.debug(f"{self.filter_combobox.itemText(value)} ({self.filter_combobox.itemData(value)}) selected.")
-        if self.filter_combobox.itemData(value) is not None:
-            if learning_model.model is not None:
-                self.draw_single_stock(self.filter_combobox.itemData(value))
-                self.make_prediction()
-
-    # def recurring_timer(self):
-    #     """Increment counter"""
-    #
-    #     self.counter += 1
-    #     self.counter_label.setText("Counter: %d" % self.counter)
-
     def draw_chart(self, data: List, prediction: List = None):
         self.clear_chart()
 
@@ -469,11 +433,43 @@ class MainWindow(QMainWindow):
 
         self.mainChart.draw()
 
-    def make_prediction(self):
-        predictions = learning_model.get_predictions(self.filter_combobox.currentData())
-        self.draw_single_stock(self.filter_combobox.currentData(), predictions)
+    def filter_changed(self, value):
+        _logger.debug(f"{self.filter_combobox.itemText(value)} ({self.filter_combobox.itemData(value)}) selected.")
+        stocksymbol = self.filter_combobox.itemData(value)
+        if stocksymbol is not None:
+            self.show_stock(stocksymbol)
 
+    def show_stock(self, stocksymbol):
+        predictions = None
+        if learning_model.model is not None:
+            predictions = learning_model.get_predictions(stocksymbol)
+
+        self.draw_single_stock(stocksymbol, predictions)
+
+    # Model training
+    def train_model(self, persist_location=None):
+        if learning_model is not None:
+            self.clear_chart()
+            self.mainChart.axes.text(0,0,"Loading...")
+            self.mainChart.draw()
+
+            self.thread(function=learning_model.train_model, on_finish=self.model_trained, persist_location=persist_location)
+        else:
+            raise Exception("Learning model instance not initialised.")
+
+    def model_trained(self):
+        self.clear_chart()
+        stocksymbol = self.filter_combobox.currentData()
+        if stocksymbol is not None:
+            self.show_stock(stocksymbol)
+
+    # Window
     def change_page(self, page):
+        """
+        Change the active view to a named page.
+        :param page: The name of the new page. Must match a value in `self.pages`.
+        :return: None.
+        """
         try:
             if self.pages is False or self.pages is None:
                 _logger.warning("Trying to change page, but no pages set.")
@@ -498,26 +494,47 @@ class MainWindow(QMainWindow):
             _logger.error(f"Error changing page: {ex}")
 
     def show_dialog(self, title : str, message : str):
+        """
+        Show a QMessageBox with the provided title and message.
+        :param title: The title of the QMessageBox.
+        :param message: The message of the QMessageBox.
+        :return: None.
+        """
         dlg = QMessageBox(self)
         dlg.setWindowTitle(title)
         dlg.setText(message)
         dlg.exec()
 
+
+    # Transactions
     def add_transaction(self, count=1):
-        for i in range(0,count):
+        """
+        Create new QTransactions and add them to the list of transactions.
+        :param count: The number of new transaction items to create.
+        :return: None.
+        """
+        for i in range(0, count):
             transaction = QTransaction(stock_data.stockdict)
-            transaction.runupdate.connect(self.calculate_investments)
+            transaction.runupdate.connect(self.total_transactions)
             self.forecast_tab_layout.insertWidget(self.forecast_tab_layout.count()-3, transaction, stretch=0)
 
     def get_transactions(self):
+        """
+        Get a list of all active QTransactions.
+        :return: A list of all QTransactions on the forecast tab.
+        """
         return [widget for widget in self.forecast_tab.children() if isinstance(widget, QTransaction)]
 
     def reset_transactions(self):
+        """
+        Remove all QTransactions on the forecast tab and create three new defaults.
+        :return: None.
+        """
         for transaction in self.get_transactions():
             transaction.remove_transaction()
         self.add_transaction(3)
 
-    def calculate_investments(self):
+    def total_transactions(self):
         transactions = self.get_transactions()
         transaction_list = [t.total for t in transactions]
         # Create list of tuples of format:
@@ -528,6 +545,7 @@ class MainWindow(QMainWindow):
         # )
         self.forecast_result.setText(f"Total: £{'%.2f' % sum(transaction_list)}")
 
+    # Registration
     def register_form(self, username, password, reenter_password):
         """
         Process and validate inputs on the registration form. Shows a response message to the user.
@@ -548,49 +566,68 @@ class MainWindow(QMainWindow):
 
 
 class QTransaction(QWidget):
+    """
+    A collection of QWidgets that represent a transaction (buying or selling) of a specified stock.
+    """
+
+    # Update signal that can be used to alert that a change has been made to this element.
     runupdate = pyqtSignal()
+
     def __init__(self, symbols, *args, **kwargs):
         super(QTransaction, self).__init__(*args, **kwargs)
+
         self.total = 0
 
+        # Root layout
         self.layout = QHBoxLayout()
 
+        # Combobox for selecting a stock to purchase/sell
+        # Label
         combobox_label = QLabel("Stock:")
         self.layout.addWidget(combobox_label, 1)
-
+        # Combobox
         self.combobox = QComboBox()
-        self.combobox.currentIndexChanged.connect(self.update_price)
+        self.combobox.currentIndexChanged.connect(self.update_price) # Update calculated price if selected stock changes
         self.layout.addWidget(self.combobox, 2)
-
+        # Label to display the selected stock's symbol
         self.stocksymbol_label = QLabel()
         self.layout.addWidget(self.stocksymbol_label, 1)
 
+        # Spinbox to select how many shares to buy/sell
+        # Spinbox
         self.value = QSpinBox()
         self.value.setRange(-10000, 10000)
-        self.value.valueChanged.connect(self.update_price)
+        self.value.valueChanged.connect(self.update_price) # Update calculated price if value changed
         self.layout.addWidget(self.value, 1)
-
+        # Label to show individual share price
         self.sharesprice_label = QLabel()
         self.layout.addWidget(self.sharesprice_label, 1)
 
+        # Select date for transaction
         self.date = QDateEdit()
         self.date.setDate(QDate.currentDate())
-        self.date.dateChanged.connect(self.update_price)
+        self.date.dateChanged.connect(self.update_price) # Update calculated price if date changed
         self.layout.addWidget(self.date, 3)
 
+        # Label showing total cost/return of this transaction
         self.total_label = QLabel()
         self.layout.addWidget(self.total_label, 1)
 
+        # Button to remove transaction
         self.remove = QPushButton("❌")
         self.remove.pressed.connect(self.remove_transaction)
         self.layout.addWidget(self.remove, 1)
 
+        # Set the root widget's layout
         self.setLayout(self.layout)
         if symbols is not None:
             self.set_symbols(symbols)
 
     def update_price(self):
-
+        """
+        Update the calculated profit/loss for the investment described by this transaction.
+        :return: None.
+        """
         stocksymbol = self.combobox.currentData()
         self.stocksymbol_label.setText(f"({stocksymbol})")
         value = self.value.value()
@@ -604,12 +641,22 @@ class QTransaction(QWidget):
             self.total = price * value
             self.total_label.setText(f"Total: £{'%.2f' % self.total}")
 
+        # Send update signal to trigger a global update of the total.
         self.runupdate.emit()
 
     def remove_transaction(self):
+        """
+        Delete this transaction.
+        :return: None.
+        """
         self.setParent(None)
 
     def set_symbols(self, symbols):
+        """
+        Set the selectable stocks for the transaction.
+        :param symbols: Dict of stock names and their symbols.
+        :return: None.
+        """
         for n in symbols:
             self.combobox.addItem(n, userData=symbols[n])
 
@@ -626,10 +673,15 @@ class QTransaction(QWidget):
     #     # Execute
     #     self.threadpool.start(worker)
 
-
+class MplCanvas(FigureCanvasQTAgg):
+    """PyQt canvas for MatPlotLib graphs"""
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = fig.add_subplot(111)
+        self.axes.axis('off')
+        super(MplCanvas, self).__init__(fig)
 
 if __name__ == '__main__':
-
     # Create application.
     app = QApplication(sys.argv) # sys.argv are commandline arguments passed in when the program runs.
 
