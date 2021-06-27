@@ -11,6 +11,9 @@ from yahoofinancials import YahooFinancials
 # Data manipulation
 import pandas as pd
 from pandas import read_csv
+import numpy as np
+
+from matplotlib import pyplot as plt
 
 class StockData:
     """
@@ -41,6 +44,7 @@ class StockData:
         try:
             self.data = read_csv(csv_path, index_col=0)
             self.fill_missing_data()
+            self.describe_data(True, False)
             # Convert all columns to weekly rolling averages
             # self.prices_df = self.prices_df.rolling(7).mean()
         except FileNotFoundError as ex:
@@ -85,33 +89,63 @@ class StockData:
         _logger.debug(f"Selected Stocks: {self.stocknames}, {stocksymbols}")
         _logger.debug(f"{start_date}, {end_date}, {time_interval}")
 
-        yahoo_financials = YahooFinancials(stocksymbols[:20])
-        data = yahoo_financials.get_historical_price_data(start_date=start_date,
-                                                          end_date=end_date,
-                                                          time_interval=time_interval)
-
         self.data = None
-        for symbol in stocksymbols:
-            stock_data = data[symbol] # Get stock data using the symbol for that stock
-            prices = stock_data['prices'] # Get price data for given stock
 
-            # Format price dict into dataframe with column headings: '[symbol]_[field]'
-            df = pd.DataFrame.from_records(prices, index='date', exclude=['formatted_date'])
-            df.columns = (symbol + "_" + field for field in df.columns)
+        for i in range(0,30):
+            try:
+                symbol = stocksymbols[i]
+                print(symbol)
+                yahoo_financials = YahooFinancials(symbol)
+                data = yahoo_financials.get_historical_price_data(start_date=start_date,
+                                                                  end_date=end_date,
+                                                                  time_interval=time_interval)
+                print(data)
+                stock_data = data[symbol] # Get stock data using the symbol for that stock
+                prices = stock_data['prices'] # Get price data for given stock
 
-            # Create or join to master dataframe
-            if self.data is None:
-                self.data = df
-            else:
-                self.data = pd.concat([self.data, df], axis=1)
+                # Format price dict into dataframe with column headings: '[symbol]_[field]'
+                df = pd.DataFrame.from_records(prices, index='date', exclude=['formatted_date'])
+                df.columns = (symbol + "_" + field for field in df.columns)
+                print(df)
+                # Create or join to master dataframe
+                if self.data is None:
+                    self.data = df
+                else:
+                    self.data = pd.concat([self.data, df], axis=1)
+            except Exception as ex:
+                _logger.error(f"Exception on loop {i}: {ex}")
 
-        print(self.data.shape())
+        print(self.data.shape)
         self.fill_missing_data()
+
         return "Done."
 
-    def describe_data(self):
+    def describe_data(self, display=False, save=False):
         if self.data is not None:
-            _logger.info(self.data.describe())
+            data_stats = self.data.describe()
+            _logger.info(data_stats)
+            _logger.info(self.data.corr())
+            if display:
+
+                # close_prices = self.data.filter(like="_close")
+                # corr_close_prices = close_prices.corr()
+                #
+                # corr_fig = plt.figure()
+                # axes = corr_fig.add_subplot(111)
+                # axcorr = axes.matshow(corr_close_prices, vmin=-1, vmax=1)
+                # corr_fig.colorbar(axcorr)
+                # headings = list(self.stockdict.values())
+                # ticks = np.arange(0, 10, 1)
+                # axes.set_xticks(ticks)
+                # axes.set_yticks(ticks)
+                # axes.set_xticklabels(headings[:10], rotation=90)
+                # axes.set_yticklabels(headings[:10])
+                #plt.show()
+
+                #plt.scatter(data_stats.loc["mean"], data_stats.loc["std"])
+                #plt.show()
+                if save:
+                    plt.savefig("data/fig.png")
 
     def fill_missing_data(self):
         empty_data = self.data[self.data.isna().any(axis=1)]
