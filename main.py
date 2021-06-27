@@ -84,7 +84,7 @@ class MainWindow(QMainWindow):
     # Threading
     def thread(self, function, in_progress=None, on_finish=None, *args, **kwargs):
         # Pass the function to execute
-        worker = Worker(function) # Any other args, kwargs are passed to the run function
+        worker = Worker(function, *args, **kwargs) # Any other args, kwargs are passed to the run function
 
         # Connect on_finish method to signal
         if on_finish is not None:
@@ -164,7 +164,7 @@ class MainWindow(QMainWindow):
         self.vbox_chartmenu.addWidget(self.filter_combobox)
 
         wid = QPushButton("Reload from Yahoo Finance")
-        wid.released.connect(self.load_data_from_yf)
+        wid.released.connect(self.load_data_from_yahoo_finance)
         self.vbox_data.addWidget(wid)
 
         wid = QPushButton("Save data to file")
@@ -180,7 +180,7 @@ class MainWindow(QMainWindow):
         self.vbox_data.addWidget(wid)
 
         wid = QPushButton("Load model")
-        wid.released.connect(lambda: learning_model.load_model(model_location="data/trainedmodel"))
+        wid.released.connect(self.load_model)
         self.vbox_data.addWidget(wid)
 
         userpage_button = QPushButton("User")
@@ -338,23 +338,13 @@ class MainWindow(QMainWindow):
         pass
 
     # Data loading
-    def get_yahoo_finance_data(self, start_date=None, end_date=None, time_interval='monthly', stocksymbols=None, on_finish=None):
-        self.thread(self.load_data_from_yf)
-        # Pass the function to execute
-        worker = Worker(self.load_data_from_yahoo_finance, start_date=start_date, end_date=end_date, time_interval=time_interval, stocksymbols=stocksymbols) # Any other args, kwargs are passed to the run function
-
-        # Connect on_finish method to signal
-        if on_finish is not None:
-            worker.signals.finished.connect(on_finish)
-
-        #worker.signals.result.connect(self.print_output)
-        #worker.signals.progress.connect(self.progress_fn)
-
-        # Execute
-        self.threadpool.start(worker)
-
-    def load_data_from_yf(self):
-        stock_data.get_yahoo_finance_data(start_date='2019-12-01', end_date='2021-03-01', time_interval='daily', on_finish=self.data_loaded)  # Any other args, kwargs are passed to the run function
+    def load_data_from_yahoo_finance(self, start_date=None, end_date=None, time_interval='monthly', stocksymbols=None, on_finish=None):
+        # TODO: Make Dynamic
+        start_date='2019-12-01'
+        end_date='2021-03-01'
+        time_interval='daily'
+        self.thread(stock_data.load_data_from_yahoo_finance, start_date=start_date, end_date=end_date,
+                    time_interval=time_interval, stocksymbols=stocksymbols, on_finish=self.data_loaded)
 
     def load_data_from_file(self):
         self.thread(stock_data.load_from_csv, on_finish=self.data_loaded)
@@ -372,6 +362,9 @@ class MainWindow(QMainWindow):
 
         for stockname in list(stock_data.stockdict.keys()):
             self.filter_combobox.addItem(stockname, userData=stock_data.get_symbol(stockname))
+
+    def load_model(self):
+        self.thread(learning_model.load_predictor("data/trainedmodel"), on_finish=self.model_ready)
 
     # Chart drawing
     def clear_chart(self):
@@ -404,22 +397,6 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.set_xticklabels(labels)
         self.mainChart.draw()
 
-
-        # self.clear_chart()
-        #
-        #
-        # self.mainChart.axes.legend(data.columns.tolist())
-        #
-        # if prediction is not None:
-        #     if len(data.columns) != len(prediction.columns):
-        #         raise Exception('Historical and prediction lists are not equal length.')
-        #
-        #     for i in range(0, len(prediction.columns)):
-        #         self.mainChart.axes.plot(prediction.iloc(axis=1)[i], linestyle='--', color=p[i].get_color())
-        #
-        # self.mainChart.draw()
-
-
     def draw_chart(self, data: List, prediction: List = None):
         self.clear_chart()
 
@@ -443,8 +420,9 @@ class MainWindow(QMainWindow):
 
     def show_stock(self, stocksymbol):
         predictions = None
-        if learning_model.model is not None:
-            predictions = learning_model.get_predictions(stocksymbol)
+        if learning_model.predictor is not None:
+            if learning_model.predictor.model is not None:
+                predictions = learning_model.get_predictions(stocksymbol)
 
         self.draw_single_stock(stocksymbol, predictions)
 
@@ -455,12 +433,16 @@ class MainWindow(QMainWindow):
             self.mainChart.axes.text(0,0,"Loading...")
             self.mainChart.draw()
 
-            self.thread(function=learning_model.train_model, on_finish=self.model_trained, persist_location=persist_location)
+            self.thread(function=learning_model.train_model, on_finish=self.model_ready, persist_location=persist_location)
         else:
             raise Exception("Learning model instance not initialised.")
 
-    def model_trained(self):
+    def model_ready(self):
         self.clear_chart()
+        if learning_model.predictor is not None:
+            if learning_model.predictor.model is not None:
+                _logger.info("Model loaded.")
+            self.draw_single_stock()
         stocksymbol = self.filter_combobox.currentData()
         if stocksymbol is not None:
             self.show_stock(stocksymbol)

@@ -11,10 +11,8 @@ import pandas as pd
 import numpy as np
 
 # Machine Learning
-from sklearn.linear_model import LinearRegression
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
-from sklearn.impute import SimpleImputer
 from sklearn.model_selection import GridSearchCV
 
 # Persistance
@@ -36,20 +34,24 @@ class LearningModel():
     datecolumns = ['year', 'month', 'day', 'weekday', 'week', 'dayofyear']
 
     def __init__(self, data=None, *args, **kwargs):
-        self.data = data
-        self.model = None
+        self.data = None
+        self.set_data(data)
+        self.predictor = None
 
     def train_model(self, persist_location=None, *args, **kwargs):
+        if self.predictor is None:
+            self.predictor = Predictor()
+
         try:
             self.train_mlp_model(self.data)
         except Exception as ex:
             _logger.error(ex)
 
-        if self.model is not None:
+        if self.predictor.model is not None:
             _logger.debug("Model trained.")
             if persist_location is not None:
                 try:
-                    dump(self.model, persist_location)
+                    self.predictor.save(location=persist_location)
                     _logger.info(f"Model persisted to {persist_location}.")
                 except FileNotFoundError as ex:
                     _logger.error(f"Persist location for model could not be found: {ex}")
@@ -58,9 +60,16 @@ class LearningModel():
         else:
             _logger.error("Problem training model.")
 
-    def load_model(self, model_location):
+    def load_predictor(self, predictor_location):
         try:
-            self.model = load(model_location)
+            self.predictor = Predictor.load(predictor_location)
+            if self.predictor is not None:
+                if self.predictor.model is not None:
+                    _logger.info(f"Model loaded: {self.predictor.model}")
+                if self.predictor.scaler is not None:
+                    _logger.info(f"Scaler loaded: {self.predictor.scaler}")
+            else:
+                raise Exception("Predictor could not be loaded.")
         except FileNotFoundError as ex:
             _logger.error(f"Persist location for model could not be found: {ex}")
         except Exception as ex:
@@ -84,20 +93,18 @@ class LearningModel():
         _logger.debug(f"Latest date: {latest_date_stamp} / {date.fromtimestamp(latest_date_stamp)}")
         _logger.debug(f"Prediction date ({prediction_period}): {prediction_date_stamp} / {date.fromtimestamp(prediction_date_stamp)}")
 
-        #return self.linear_model_prediction(stock, prediction_date_stamp)
-        #return self.mlp_model_prediction(stock, prediction_date_stamp)
-
         prediction_date_stamp = latest_date_stamp
         latest_date_stamp = prediction_date_stamp - self.periods[prediction_period]
-        # return self.naive_rolling_mlp_model_prediction(stock, prediction_date_stamp, latest_date_stamp)
-        if self.model is None:
+        if self.predictor.model is None:
             self.train_mlp_model()
         dates = [(latest_date_stamp + (i * 86400)) for i in range(0, 35)]
-        predictions = self.model.predict(self.deconstruct_date(dates))
-        predictions = self.scaler.inverse_transform(predictions)
+        predictions = self.predictor.model.predict(self.deconstruct_date(dates))
+        if self.predictor.scaler is not None:
+            _logger.info("Unscaling prediction values.")
+            predictions = self.predictor.scaler.inverse_transform(predictions)
         print(predictions)
 
-        return pd.DataFrame(data=predictions, index=dates, columns=self.data.columns[:60])[f"{stock}_close"]
+        return pd.DataFrame(data=predictions, index=dates, columns=self.data.columns[:-6])[f"{stock}_close"]
 
     def get_value(self, stock: str, prediction_date: date):
         _logger.debug(f"Getting value of stock {stock} on date {prediction_date}.")
@@ -126,12 +133,14 @@ class LearningModel():
             print("pred_date_stamp:", prediction_date_stamp)
             return np.interp(prediction_date_stamp, stock_data.index, stock_data.values)
         else:
-            if self.model is None:
+            if self.predictor.model is None:
                 self.train_mlp_model()
-            predictions = self.model.predict(self.deconstruct_date([prediction_date_stamp]))
-            predictions = self.scaler.inverse_transform(predictions)
+            predictions = self.predictor.model.predict(self.deconstruct_date([prediction_date_stamp]))
+            predictions = self.predictor.scaler.inverse_transform(predictions)
             print(predictions)
-            prediction = pd.DataFrame(data=predictions, index=[prediction_date_stamp], columns=self.data.columns[:60])
+            if len(predictions[0]) != (len(self.data.columns) - 6):
+                _logger.error("Wrong length predictions.")
+            prediction = pd.DataFrame(data=predictions, index=[prediction_date_stamp], columns=self.data.columns[:-6])
             return prediction[f"{stock}_close"].values[0]
     # def linear_model_prediction(self, stock, prediction_date_stamp):
     #     latest_date_stamp = self.data.index.max()
@@ -271,22 +280,28 @@ class LearningModel():
 
         # Get dependent variables for model output (stock prices)
         y = data.drop(self.datecolumns, 1)
+        # y = y["TYT.L_close"]
         _logger.debug(f"Y data size: {y.shape}")
 
+        _logger.debug(x)
+        _logger.debug(y)
+
         # Create data scaler - Keep reference for later unscaling
-        self.scaler = StandardScaler()
+        self.predictor.scaler = StandardScaler()
 
         # Scale y
-        self.scaler.fit(y)
-        y = self.scaler.transform(y)
+        self.predictor.scaler.fit(y)
+        y = self.predictor.scaler.transform(y)
         
         _logger.debug("Beginning hyperparameter tuning and model training.")
         params = [
             {
                 "random_state": [self.seed],
-                "solver": ["lbfgs"],
-                "hidden_layer_sizes": [(2), (5), (5, 5), (5, 10), (20), (10, 10), (10, 20), (40, 40), (50, 100), (100, 200), (200, 300), (20, 40, 20), (20, 50, 20), (50, 100, 50), (20, 40, 40, 20), (10, 20, 20, 10), (10, 20, 20, 20, 10)],
-                "max_iter": [200],
+                "solver": ["lbfgs"],#["lbfgs", "adam"],
+                "hidden_layer_sizes": [(200, 500)],
+
+                #"hidden_layer_sizes": [(2), (5), (5, 5), (5, 10), (20)],#, (10, 10), (10, 20), (40, 40), (50, 100), (100, 200), (200, 300), (20, 40, 20), (20, 50, 20), (50, 100, 50), (20, 40, 40, 20), (10, 20, 20, 10), (10, 20, 20, 20, 10)],
+                "max_iter": [1000],
                 "verbose": [True]
             }
         ]
@@ -296,7 +311,7 @@ class LearningModel():
 
         print(regressor.best_params_)
 
-        self.model = regressor
+        self.predictor.model = regressor
 
     def deconstruct_date(self, datestamps):
 
@@ -365,9 +380,14 @@ class LearningModel():
         return True
 
     def calculate_return(self, investments : list):
-        if self.model is None:
-            # Create model first
-            _logger.error("No model exists.")
+        if self.predictor is None:
+            # Must create or load a predictor first
+            _logger.error("No predictor exists.")
+            return
+
+        if self.predictor.model is None:
+            # Must create or load model first
+            _logger.error("Predictor is missing a model.")
             return
 
         total = 0
@@ -387,3 +407,44 @@ class LearningModel():
                 _logger.error(ex)
 
         return total
+
+class Predictor:
+    def __init__(self, model=None, scaler=None, location=None):
+        self.model = model
+        self.scaler = scaler
+        self.location = location
+
+    def save(self, model=None, scaler=None, location=None):
+        if model is not None:
+            _logger.debug(f"Setting model for {self} to {model}.")
+            self.model = model
+
+        if scaler is not None:
+            _logger.debug(f"Setting scaler for {self} to {scaler}.")
+            self.scaler = scaler
+
+        if location is not None:
+            _logger.debug(f"Setting location for {self} to {location}.")
+            self.location = location
+
+        if self.model is not None and self.location is not None:
+            try:
+                dump(self, self.location)
+                _logger.info(f"Model persisted to {self.location}.")
+            except FileNotFoundError as ex:
+                _logger.error(f"Persist location for model could not be found: {ex}")
+            except Exception as ex:
+                _logger.error(ex)
+
+    @staticmethod
+    def load(location=None):
+
+        if location is None:
+            _logger.error("No location specified.")
+
+        try:
+            return load(location)
+        except FileNotFoundError as ex:
+            _logger.error(f"Location could not be found: {ex}")
+        except Exception as ex:
+            _logger.error(ex)
