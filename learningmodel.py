@@ -30,13 +30,30 @@ class LearningModel():
     # Seed for repeatability of random number generation
     seed = 98628
 
+    # Data to train models with
+    data = None
+
+    # Current trained predictor
+    predictor = None
+
     # Column names for deconstructed dates.
     datecolumns = ['year', 'month', 'day', 'weekday', 'week', 'dayofyear']
 
     def __init__(self, data=None, *args, **kwargs):
-        self.data = None
-        self.set_data(data)
-        self.predictor = None
+        if data is not None:
+            self.set_data(data)
+
+    def set_data(self, data):
+        if isinstance(data, pd.DataFrame):
+            if not {"year", "month", "day", "weekday", "week", "dayofyear"}.issubset(data.columns):
+                print(data.shape)
+                data = data.join(self.deconstruct_date(data.index))
+                print(data.shape)
+                print(data)
+            self.data = data
+            return True
+        else:
+            return False
 
     def train_model(self, persist_location=None, *args, **kwargs):
         if self.predictor is None:
@@ -358,18 +375,6 @@ class LearningModel():
         #    input_date.weekday()
         #]
 
-    def set_data(self, data):
-        if isinstance(data, pd.DataFrame):
-            if not {"year", "month", "day", "weekday", "week", "dayofyear"}.issubset(data.columns):
-                print(data.shape)
-                data = data.join(self.deconstruct_date(data.index))
-                print(data.shape)
-                print(data)
-            self.data = data
-            return True
-        else:
-            return False
-
     def _check_data(self):
         if self.data is None:
             _logger.error("No dataset to train model on. Use `set_data()` to specify dataframe first.")
@@ -378,37 +383,42 @@ class LearningModel():
             _logger.error("Dataset is not a dataframe. Please use `set_data()` to recreate the dataframe.")
             return False
         return True
-
-    def calculate_return(self, investments : list):
-        if self.predictor is None:
-            # Must create or load a predictor first
-            _logger.error("No predictor exists.")
-            return
-
-        if self.predictor.model is None:
-            # Must create or load model first
-            _logger.error("Predictor is missing a model.")
-            return
-
-        total = 0
-
-        for investment in investments:
-            if not isinstance(investment, tuple):
-                _logger.error(f"Investment format incorrect - Not a tuple: {investment}")
-                return
-            try:
-                (stock, count, transaction_date) = investment
-                print(investment)
-                result = self.get_value(stock, transaction_date) * count
-                print(f"{stock} investment returned: {result}.")
-                total += result
-
-            except Exception as ex:
-                _logger.error(ex)
-
-        return total
+    #
+    # def calculate_return(self, investments : list):
+    #     if self.predictor is None:
+    #         # Must create or load a predictor first
+    #         _logger.error("No predictor exists.")
+    #         return
+    #
+    #     if self.predictor.model is None:
+    #         # Must create or load model first
+    #         _logger.error("Predictor is missing a model.")
+    #         return
+    #
+    #     total = 0
+    #
+    #     for investment in investments:
+    #         if not isinstance(investment, tuple):
+    #             _logger.error(f"Investment format incorrect - Not a tuple: {investment}")
+    #             return
+    #         try:
+    #             (stock, count, transaction_date) = investment
+    #             print(investment)
+    #             result = self.get_value(stock, transaction_date) * count
+    #             print(f"{stock} investment returned: {result}.")
+    #             total += result
+    #
+    #         except Exception as ex:
+    #             _logger.error(ex)
+    #
+    #     return total
 
 class Predictor:
+
+    model = None
+    scaler = None
+    location = None
+
     def __init__(self, model=None, scaler=None, location=None):
         self.model = model
         self.scaler = scaler

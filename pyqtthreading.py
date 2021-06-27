@@ -1,5 +1,6 @@
 # Logging
 import logging
+
 _logger = logging.getLogger(__name__)
 
 # General
@@ -8,12 +9,14 @@ import sys, traceback
 # GUI
 from PyQt5.QtCore import QRunnable, pyqtSlot, pyqtSignal, QObject
 
+
 # Signals
 class WorkerSignals(QObject):
     finished = pyqtSignal()  # When completed
     error = pyqtSignal(tuple)  # Tuple (exctype, value, traceback.format_exc() )
     result = pyqtSignal(object)  # Data returned
-    progress = pyqtSignal(int) # Percentage progress
+    progress = pyqtSignal(int)  # Percentage progress
+
 
 class Worker(QRunnable):
     """ Worker thread
@@ -53,7 +56,6 @@ class Worker(QRunnable):
         finally:
             _logger.debug("Worker finished")
             self.signals.finished.emit()  # Done
-
 
     def progress_fn(self, n):
         _logger.debug("%d%% done" % n)

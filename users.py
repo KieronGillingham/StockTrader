@@ -11,15 +11,14 @@ class UserManager:
     WARNING: This implementation is insecure and should not be used in production environments.
     """
 
+    userbase = None
+    current_user = None
+
     def __init__(self, csv_path="data/users.csv"):
         """
         Initalise a UserManager instance.
         :param csv_path: The path to use for storing the user csv file.
         """
-        # Set default values
-        self.userbase = None
-        self.current_user = None
-
         if csv_path is not None:
             self.load_userbase(csv_path=csv_path)
 

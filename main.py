@@ -21,6 +21,8 @@ from pyqtthreading import Worker
 # Stock data
 from stockdata import StockData
 
+from users import UserManager
+
 # Plotting
 import matplotlib
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
@@ -32,9 +34,22 @@ from learningmodel import LearningModel
 
 stock_data = StockData()
 learning_model = LearningModel()
+user_manager = UserManager()
 
 class MainWindow(QMainWindow):
     """ Main window of application"""
+    # List pages and assign indicies
+    pages = {
+        "Login": 0,
+        "Chart": 1,
+        "Register": 2,
+        "Forecast": 3,
+        "User": 4,
+        "Help": 5
+    }
+
+    # Current user
+    user = None
 
     def __init__(self, *args, **kwargs):
         super(MainWindow, self).__init__(*args, **kwargs)
@@ -50,17 +65,6 @@ class MainWindow(QMainWindow):
         # Root widget for storing GUI pages
         self.root = QStackedWidget()
 
-        # List pages and assign indicies
-        self.pages = {
-            "Login": 0,
-            "Chart": 1,
-            "Register": 2,
-            "Forecast": 3,
-            "User": 4,
-            "Help": 5
-        }
-        self.user = None
-
         # Setup page layouts
         self._setup_login_page()
         self._setup_register_page()
@@ -69,13 +73,14 @@ class MainWindow(QMainWindow):
         self._setup_user_page()
         self._setup_help_page()
 
-        page = QWidget()
-        page.setLayout(self.vbox_pagechart)
-        self.root.insertWidget(self.pages["Chart"], page)
+        # page = QWidget()
+        # page.setLayout(self.vbox_pagechart)
+        # self.root.insertWidget(self.pages["Chart"], page)
 
         # Center pages
         self.setCentralWidget(self.root)
 
+        # Start on login page
         self.change_page("Login")
 
         # Display the main window
@@ -210,9 +215,6 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(380,100,380,200)
         page.setLayout(layout)
         self.root.insertWidget(self.pages["Login"], page)
-
-        from users import UserManager
-        self.user_manager = UserManager()
 
         # Login form
         groupbox = QGroupBox("Login")
@@ -488,7 +490,6 @@ class MainWindow(QMainWindow):
         dlg.setWindowTitle(title)
         dlg.setText(message)
         dlg.exec()
-
 
     # Transactions
     def add_transaction(self, count=1):
