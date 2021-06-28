@@ -151,9 +151,9 @@ class StockData:
         empty_data = self.data[self.data.isna().any(axis=1)]
         missing_rows = len(empty_data.index)
         if missing_rows > 0:
-            _logger.warning(f"{missing_rows} rows missing. Imputing substitute values.")
-            imputer = SimpleImputer(strategy="mean")
-            imputer.fit(self.data.values)
-            self.data = pd.DataFrame(data=imputer.transform(self.data), columns=self.data.columns, index=self.data.index)
+            _logger.warning(f"{missing_rows} rows missing. Rolling values forward.")
+            self.data = self.data.fillna(method="ffill", axis=0) # Roll values foward
+            self.data = self.data.fillna(method="bfill", axis=0) # Roll values backwards in case first element(s) NaN
+            self.data = self.data.fillna(value=0, axis=0) # Fill 0 in case any column is entirely NaN
         else:
             _logger.debug("No data missing.")

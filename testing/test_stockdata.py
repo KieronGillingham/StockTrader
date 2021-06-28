@@ -82,5 +82,5 @@ class TestStockData(TestCase):
 
         self.assertFalse(self.stock_data.data.isna().any().any(), "The dataset still contains missing values.")
         self.assertEqual((3, 3), self.stock_data.data.shape, "The dataset has changed shape.")
-        self.assertEqual(31, self.stock_data.data[0][1], "Imputed value does not match calculated mean '31'.")
-        self.assertEqual(43, self.stock_data.data[2][0], "Imputed value does not match calculated mean '43'.")
+        self.assertEqual(34, self.stock_data.data[0][1], "Imputed value does not match rolled forward '34'.")
+        self.assertEqual(42, self.stock_data.data[2][0], "Imputed value does not match rolled backward '42'.")
