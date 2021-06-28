@@ -164,6 +164,29 @@ class UserManager:
             _logger.error(f"An exception occurred: {ex}")
             return "An exception occurred."
 
+    def update_account(self, new_values: dict):
+        if "account" in new_values:
+            account = new_values["account"]
+            if account == "Guest":
+                return "Cannot update guest account."
+            elif account in self.userbase.index:
+                # Old user exists, update details
+                for key in new_values.keys():
+                    if key in self.userbase.columns:
+                        if new_values[key] is not None and new_values[key] is not "":
+                            self.userbase[key][account] = new_values[key]
+                if "username" in new_values.keys():
+                    self.userbase.rename(index={account:new_values["username"]}, inplace=True)
+                self.save_to_csv()
+                return "Account details updated."
+
+            else:
+                return f"User {account} does not exist."
+        else:
+            return "No account provided."
+
+
+
     def guest_account(self):
         """
         Return a blank guest account with default credentials.

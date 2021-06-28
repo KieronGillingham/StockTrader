@@ -73,10 +73,6 @@ class MainWindow(QMainWindow):
         self._setup_user_page()
         self._setup_help_page()
 
-        # page = QWidget()
-        # page.setLayout(self.vbox_pagechart)
-        # self.root.insertWidget(self.pages["Chart"], page)
-
         # Center pages
         self.setCentralWidget(self.root)
 
@@ -98,43 +94,15 @@ class MainWindow(QMainWindow):
         # Execute
         self.threadpool.start(worker)
 
-    # User
-    def sign_in(self, username, password):
-        if username == "Guest":
-            self.user = self.user_manager.guest_account()
-
-        elif username in [None, False, ""]:
-            self.show_dialog("Login Failure", "Please enter a valid username.")
-            return
-
-        elif password in [None, False, ""]:
-            self.show_dialog("Login Failure", "Please enter a valid password.")
-            return
-
-        else:
-            self.user = self.user_manager.sign_in(username, password)
-
-        if self.user is None:
-            self.show_dialog("Login Failure", "Credentials not recognised.")
-        else:
-            _logger.info(f"Signed in as {self.user['username']}")
-            self.change_page("Chart")
-
-    def log_out(self):
-        _logger.info(f"Signing out {self.user['username']}")
-        self.user = None
-        self.change_page("Login")
-
-    def set_user_label(self):
-        if self.user is not None:
-            self.user_label.setText(f"Signed in as: {self.user['username']} | Balance: £{self.user['balance']}")
-        else:
-            self.user_label.setText("No user found.")
 
     # Page layout
     def _setup_chart_page(self):
-        # Initalise layouts
+        page = QWidget()
         self.vbox_pagechart = QVBoxLayout()
+        page.setLayout(self.vbox_pagechart)
+        self.root.insertWidget(self.pages["Chart"], page)
+
+        # Initalise layouts
         hbox_title = QHBoxLayout()
         self.hbox_main = QHBoxLayout()
         self.vbox_sidebar = QVBoxLayout()
@@ -334,7 +302,44 @@ class MainWindow(QMainWindow):
         layout.addWidget(back_button)
 
     def _setup_user_page(self):
-        pass
+        # User page
+        page = QWidget()
+        layout = QVBoxLayout()
+        layout.setContentsMargins(380, 100, 380, 200)
+        page.setLayout(layout)
+        self.root.insertWidget(self.pages["User"], page)
+
+        # User details form
+        groupbox = QGroupBox("User")
+        formlayout = QFormLayout()
+        # Username field
+        self.user_username_field = QLineEdit()
+        formlayout.addRow(QLabel("Username"), self.user_username_field)
+        # Password field
+        password_field = QLineEdit()
+        password_field.setEchoMode(QLineEdit.Password)
+        formlayout.addRow(QLabel("Password"), password_field)
+        # Balance field
+        self.user_balance_field = QSpinBox()
+        formlayout.addRow(QLabel("Balance"), self.user_balance_field)
+
+        # Update button
+        update_button = QPushButton("Update")
+        update_button.released.connect(lambda: self.update_user({
+            "account": self.user["username"],
+            "username": self.user_username_field.text(),
+            "password": password_field.text(),
+            "balance": self.user_balance_field.value()
+        }))
+        formlayout.addRow(update_button)
+
+        # Set form layout
+        groupbox.setLayout(formlayout)
+        layout.addWidget(groupbox)
+
+        back_button = QPushButton("Back")
+        back_button.released.connect(lambda: self.change_page("Chart"))
+        layout.addWidget(back_button)
 
     def _setup_help_page(self):
         pass
@@ -449,6 +454,72 @@ class MainWindow(QMainWindow):
         if stocksymbol is not None:
             self.show_stock(stocksymbol)
 
+    # User
+    def sign_in(self, username, password):
+        if username == "Guest":
+            self.user = user_manager.guest_account()
+
+        elif username in [None, False, ""]:
+            self.show_dialog("Login Failure", "Please enter a valid username.")
+            return
+
+        elif password in [None, False, ""]:
+            self.show_dialog("Login Failure", "Please enter a valid password.")
+            return
+
+        else:
+            self.user = user_manager.sign_in(username, password)
+
+        if self.user is None:
+            self.show_dialog("Login Failure", "Credentials not recognised.")
+        else:
+            _logger.info(f"Signed in as {self.user['username']}")
+            self.change_page("Chart")
+
+    def log_out(self):
+        _logger.info(f"Signing out {self.user['username']}")
+        self.user = None
+        self.change_page("Login")
+
+    def register_form(self, username, password, reenter_password):
+        """
+        Process and validate inputs on the registration form. Shows a response message to the user.
+        :param username: The input username.
+        :param password: The input password.
+        :param reenter_password: The input for re-enter password.
+        :return: None.
+        """
+        # Confirm entered passwords match.
+        if password != reenter_password:
+            message = "Passwords do not match."
+        else:
+            # Attempt to register the user with the given username and password.
+            message = user_manager.register_user(username, password)
+
+        # Display a returned message to the user.
+        self.show_dialog("Registration", message)
+
+    def update_user(self, values):
+        message = user_manager.update_account(values)
+        self.show_dialog("Account Update", message)
+        self.set_user_label()
+
+    def set_user_label(self):
+        if self.user is not None:
+            if hasattr(self, "user_label"):
+                self.user_label.setText(f"Signed in as: {self.user['username']} | Balance: £{self.user['balance']}")
+            if hasattr(self, "user_username_field"):
+                self.user_username_field.setText(self.user['username'])
+            if hasattr(self, "user_balance_field"):
+                self.user_balance_field.setValue(self.user["balance"])
+        else:
+            if hasattr(self, "user_label"):
+                self.user_label.setText("No user found.")
+            if hasattr(self, "user_username_field"):
+                self.user_username_field.setText(None)
+            if hasattr(self, "user_balance_field"):
+                self.user_balance_field.setValue(0)
+
     # Window
     def change_page(self, page):
         """
@@ -529,25 +600,6 @@ class MainWindow(QMainWindow):
         #   Proposed date of the transaction
         # )
         self.forecast_result.setText(f"Total: £{'%.2f' % sum(transaction_list)}")
-
-    # Registration
-    def register_form(self, username, password, reenter_password):
-        """
-        Process and validate inputs on the registration form. Shows a response message to the user.
-        :param username: The input username.
-        :param password: The input password.
-        :param reenter_password: The input for re-enter password.
-        :return: None.
-        """
-        # Confirm entered passwords match.
-        if password != reenter_password:
-            message = "Passwords do not match."
-        else:
-            # Attempt to register the user with the given username and password.
-            message = self.user_manager.register_user(username, password)
-
-        # Display a returned message to the user.
-        self.show_dialog("Registration", message)
 
 
 class QTransaction(QWidget):
