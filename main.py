@@ -46,7 +46,6 @@ class MainWindow(QMainWindow):
         "Register": 2,
         "Forecast": 3,
         "User": 4,
-        "Help": 5
     }
 
     # Current user
@@ -72,7 +71,6 @@ class MainWindow(QMainWindow):
         self._setup_chart_page()
         self._setup_forecast_page()
         self._setup_user_page()
-        self._setup_help_page()
 
         # Center pages
         self.setCentralWidget(self.root)
@@ -349,9 +347,6 @@ class MainWindow(QMainWindow):
         back_button = QPushButton("Back")
         back_button.released.connect(lambda: self.change_page("Chart"))
         layout.addWidget(back_button)
-
-    def _setup_help_page(self):
-        pass
 
     # Data loading
     def load_data_from_yahoo_finance(self, start_date=None, end_date=None, time_interval='monthly', stocksymbols=None, on_finish=None):
