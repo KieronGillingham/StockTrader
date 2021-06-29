@@ -7,7 +7,7 @@ logging.basicConfig(level=logging.DEBUG, format=log_template, handlers= [logging
 # General
 import sys
 import calendar
-from datetime import date
+from datetime import date, timedelta
 from typing import List
 
 # PyQt
@@ -289,11 +289,12 @@ class MainWindow(QMainWindow):
         formlayout.addRow(QLabel("Desired profit"), profit_spinbox)
         # Timeframe field
         date_field = QDateEdit()
-        self.date.setMinimumDate(QDate.currentDate())
+        date_field.setMinimumDate(QDate.currentDate())
         date_field.setCalendarPopup(True)
         formlayout.addRow(QLabel("Timeframe"), date_field)
         # Calculate button
         button = QPushButton("Calculate")
+
         formlayout.addRow(button)
         # Set form layout
         groupbox.setLayout(formlayout)
@@ -301,6 +302,7 @@ class MainWindow(QMainWindow):
 
         resultlabel = QLabel("Calculation result")
         suggest_tab_layout.addWidget(resultlabel, 1)
+        button.released.connect(lambda: resultlabel.setText(self.investment_plan(self.user["balance"], date_field.date(), desired_profit=profit_spinbox.value())))
 
         # Back button
         back_button = QPushButton("Back")
@@ -456,7 +458,7 @@ class MainWindow(QMainWindow):
         if learning_model.predictor is not None:
             if learning_model.predictor.model is not None:
                 _logger.info("Model loaded.")
-            self.draw_single_stock()
+            #self.draw_single_stock()
         stocksymbol = self.filter_combobox.currentData()
         if stocksymbol is not None:
             self.show_stock(stocksymbol)
@@ -608,6 +610,75 @@ class MainWindow(QMainWindow):
         # )
         self.forecast_result.setText(f"Total: £{'%.2f' % sum(transaction_list)}")
 
+    # Investments
+    def investment_plan(self, starting_funds=0, end_date=date.today(), desired_profit=0):
+        # Check desired profit is above 0
+        if desired_profit <= 0:
+            message = f"Desired profit {desired_profit} is invalid."
+            _logger.warning(message)
+            self.show_dialog("Investment", message)
+            return ""
+
+        # Get today date
+        day = date.today()
+
+        # Convert to PyDate
+        if isinstance(end_date, QDate):
+            end_date = end_date.toPyDate()
+
+        # Check end_date is in the future
+        if end_date <= day:
+            return f"Invalid end date: {end_date}"
+
+        if learning_model.data is None:
+            return "No data loaded."
+
+        if learning_model.predictor is None:
+            return "No model loaded."
+
+        # Get cheapest stock price
+        # TODO: Include list of stocks included in predictions in learningmodel
+        # Temp
+        cols = [c[0] for c in learning_model.data.columns.str.split("_")]
+        stocks = set(cols[:-6])
+        prices = [learning_model.get_value(stock, date.today()) for stock in stocks]
+        prices.sort()
+        cheapest_stock = prices[0]
+
+        # Check stocks are affordable
+        if starting_funds < cheapest_stock:
+            return "Insufficient funds to begin investing."
+
+        current_funds = starting_funds
+        stockreturn = []
+        while day <= end_date:
+            bestdeal = None
+            for stock in stocks:
+                todayprice = learning_model.get_value(stock, day)
+                tomorrowprice = learning_model.get_value(stock, day + timedelta(days=1))
+                if tomorrowprice <= todayprice:
+                    continue
+
+                stockcount = current_funds // todayprice
+                if stockcount > 0:
+                    profit = (stockcount * tomorrowprice) - (stockcount * todayprice)
+                    if bestdeal is None or bestdeal[4] < profit:
+                        bestdeal = (day, stock, stockcount, todayprice, tomorrowprice, profit)
+
+            if bestdeal is None:
+                break
+
+            stockreturn.append(bestdeal)
+            current_funds = current_funds + bestdeal[4]
+            day = day + timedelta(days=1)
+
+        result = ""
+        _logger.debug(stockreturn)
+
+        for a in stockreturn:
+            result += f"{a[0]}: Buy {a[2]} stock(s) in {a[1]}. Sell next day for £{a[4]} profit.\n"
+        _logger.debug(result)
+        return str(result)
 
 class QTransaction(QWidget):
     """

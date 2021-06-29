@@ -150,7 +150,7 @@ class LearningModel():
             print("pred_date_stamp:", prediction_date_stamp)
             return np.interp(prediction_date_stamp, stock_data.index, stock_data.values)
         else:
-            if self.predictor.model is None:
+            if self.predictor is None:
                 self.train_mlp_model()
             predictions = self.predictor.model.predict(self.deconstruct_date([prediction_date_stamp]))
             predictions = self.predictor.scaler.inverse_transform(predictions)
