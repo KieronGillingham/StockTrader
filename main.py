@@ -35,6 +35,7 @@ from learningmodel import LearningModel
 stock_data = StockData()
 learning_model = LearningModel()
 user_manager = UserManager()
+INTINF = 2**31 - 1
 
 class MainWindow(QMainWindow):
     """ Main window of application"""
@@ -283,9 +284,14 @@ class MainWindow(QMainWindow):
         groupbox = QGroupBox()
         formlayout = QFormLayout()
         # Profit field
-        formlayout.addRow(QLabel("Desired profit"), QLineEdit())
+        profit_spinbox = QSpinBox()
+        profit_spinbox.setRange(0, INTINF)
+        formlayout.addRow(QLabel("Desired profit"), profit_spinbox)
         # Timeframe field
-        formlayout.addRow(QLabel("Timeframe"), QLineEdit())
+        date_field = QDateEdit()
+        self.date.setMinimumDate(QDate.currentDate())
+        date_field.setCalendarPopup(True)
+        formlayout.addRow(QLabel("Timeframe"), date_field)
         # Calculate button
         button = QPushButton("Calculate")
         formlayout.addRow(button)
@@ -321,6 +327,7 @@ class MainWindow(QMainWindow):
         formlayout.addRow(QLabel("Password"), password_field)
         # Balance field
         self.user_balance_field = QSpinBox()
+        self.user_balance_field.setRange(-1 * INTINF, INTINF)
         formlayout.addRow(QLabel("Balance"), self.user_balance_field)
 
         # Update button
@@ -633,7 +640,7 @@ class QTransaction(QWidget):
         # Spinbox to select how many shares to buy/sell
         # Spinbox
         self.value = QSpinBox()
-        self.value.setRange(-10000, 10000)
+        self.value.setRange(-1000000, 1000000)
         self.value.valueChanged.connect(self.update_price) # Update calculated price if value changed
         self.layout.addWidget(self.value, 1)
         # Label to show individual share price
@@ -643,6 +650,7 @@ class QTransaction(QWidget):
         # Select date for transaction
         self.date = QDateEdit()
         self.date.setDate(QDate.currentDate())
+        self.date.setCalendarPopup(True)
         self.date.dateChanged.connect(self.update_price) # Update calculated price if date changed
         self.layout.addWidget(self.date, 3)
 
