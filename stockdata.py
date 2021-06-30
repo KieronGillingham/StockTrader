@@ -94,12 +94,12 @@ class StockData:
         for i in range(0,30):
             try:
                 symbol = stocksymbols[i]
-                print(symbol)
+                _logger.debug(symbol)
                 yahoo_financials = YahooFinancials(symbol)
-                data = yahoo_financials.get_historical_price_data(start_date=start_date,
-                                                                  end_date=end_date,
+                data = yahoo_financials.get_historical_price_data(start_date=str(start_date),
+                                                                  end_date=str(end_date),
                                                                   time_interval=time_interval)
-                print(data)
+                _logger.debug(data)
                 stock_data = data[symbol] # Get stock data using the symbol for that stock
                 prices = stock_data['prices'] # Get price data for given stock
 

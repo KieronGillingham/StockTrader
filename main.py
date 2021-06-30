@@ -127,24 +127,38 @@ class MainWindow(QMainWindow):
         hbox_title.addWidget(forecast_button)
 
         # Stock filter combobox
+        vbox_chartmenu.addWidget(QLabel("Stock:"))
         self.filter_combobox = QComboBox()
         self.filter_combobox.currentIndexChanged.connect(self.filter_changed)
+        self.filter_combobox.setEnabled(False)
         vbox_chartmenu.addWidget(self.filter_combobox)
 
         # Data
+        vbox_data.addWidget(QLabel("Data Start Date:"))
+        self.data_start_date = QDateEdit()
+        self.data_start_date.setCalendarPopup(True)
+        self.data_start_date.setDate(QDate.currentDate().addYears(-1))
+        vbox_data.addWidget(self.data_start_date)
+        vbox_data.addWidget(QLabel("Data End Date:"))
+        self.data_end_date = QDateEdit()
+        self.data_end_date.setCalendarPopup(True)
+        self.data_end_date.setDate(QDate.currentDate())
+        self.data_end_date.setMaximumDate(QDate.currentDate())
+        vbox_data.addWidget(self.data_end_date)
         wid = QPushButton("Reload from Yahoo Finance")
-        wid.released.connect(self.load_data_from_yahoo_finance)
+        wid.released.connect(lambda: self.load_data_from_yahoo_finance(start_date=self.data_start_date.date(),
+                                                                       end_date=self.data_end_date.date()))
         vbox_data.addWidget(wid)
         wid = QPushButton("Save data to file")
         wid.released.connect(stock_data.save_to_csv)
         vbox_data.addWidget(wid)
         wid = QPushButton("Load data from file")
-        wid.released.connect(self.load_data_from_file)
+        wid.released.connect(lambda: self.load_data_from_file(start_date=self.data_start_date.date(),
+                                                              end_date=self.data_end_date.date()))
         vbox_data.addWidget(wid)
         vbox_data.addSpacing(100)
 
         # Model
-
         vbox_data.addWidget(QLabel("Model Name:"))
         model_name = QLineEdit()
         model_name.setToolTip("The name of the model that will be created or loaded. Leave blank for default: "
@@ -350,11 +364,16 @@ class MainWindow(QMainWindow):
         layout.addWidget(back_button)
 
     # Data loading
-    def load_data_from_yahoo_finance(self, start_date=None, end_date=None, time_interval='monthly', stocksymbols=None, on_finish=None):
-        # TODO: Make Dynamic
-        start_date='2019-12-01'
-        end_date='2021-03-01'
-        time_interval='daily'
+    def load_data_from_yahoo_finance(self, start_date=None, end_date=None, time_interval='daily', stocksymbols=None, on_finish=None):
+        if start_date is None:
+            start_date = date.today() - timedelta(days=365)
+        if end_date is None:
+            end_date = date.today()
+
+        if isinstance(start_date, QDate):
+            start_date = start_date.toPyDate()
+        if isinstance(end_date, QDate):
+            end_date = end_date.toPyDate()
         self.thread(stock_data.load_data_from_yahoo_finance, start_date=start_date, end_date=end_date,
                     time_interval=time_interval, stocksymbols=stocksymbols, on_finish=self.data_loaded)
 
@@ -365,6 +384,7 @@ class MainWindow(QMainWindow):
         _logger.debug("Data loaded")
         self.clear_chart()
         self.filter_combobox.clear()
+        self.filter_combobox.setEnabled(False)
         data = stock_data.data
 
         if learning_model.set_data(data):
@@ -374,6 +394,9 @@ class MainWindow(QMainWindow):
 
         for stockname in list(stock_data.stockdict.keys()):
             self.filter_combobox.addItem(stockname, userData=stock_data.get_symbol(stockname))
+
+        if self.filter_combobox.count() > 0:
+            self.filter_combobox.setEnabled(True)
 
     def load_model(self, location):
         if not isinstance(location, str):
