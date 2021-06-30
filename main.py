@@ -96,84 +96,85 @@ class MainWindow(QMainWindow):
 
     # Page layout
     def _setup_chart_page(self):
+        """Create the layout of the Chart page."""
+        # Root widget
         page = QWidget()
-        self.vbox_pagechart = QVBoxLayout()
-        page.setLayout(self.vbox_pagechart)
+        vbox_pagechart = QVBoxLayout()
+        page.setLayout(vbox_pagechart)
         self.root.insertWidget(self.pages["Chart"], page)
 
         # Initalise layouts
         hbox_title = QHBoxLayout()
-        self.hbox_main = QHBoxLayout()
-        self.vbox_sidebar = QVBoxLayout()
-        self.vbox_chartmenu = QVBoxLayout()
-        self.vbox_prediction = QVBoxLayout()
-        self.vbox_data = QVBoxLayout()
+        hbox_main = QHBoxLayout()
+        vbox_sidebar = QVBoxLayout()
+        vbox_chartmenu = QVBoxLayout()
+        vbox_prediction = QVBoxLayout()
+        vbox_data = QVBoxLayout()
 
-        # # Counter for debugging
-        # self.counter = 0
-        # self.counter_label = QLabel()
-        # self.vbox_main.addWidget(self.counter_label)
-        # # Timer for counter
-        # self.timer = QTimer()
-        # self.timer.setInterval(1000)
-        # self.timer.timeout.connect(self.recurring_timer)
-        # self.timer.start()
-
+        # User label
         self.user_label = QLabel()
         self.set_user_label()
         hbox_title.addWidget(self.user_label)
 
+        # Logout button
         logout_button = QPushButton("Log Out")
         logout_button.released.connect(self.log_out)
         hbox_title.addWidget(logout_button)
 
+        # Forecast button
         forecast_button = QPushButton("Forecast")
         forecast_button.released.connect(lambda: [self.change_page("Forecast"), self.reset_transactions()])
         hbox_title.addWidget(forecast_button)
 
+        # Stock filter combobox
         self.filter_combobox = QComboBox()
         self.filter_combobox.currentIndexChanged.connect(self.filter_changed)
-        self.vbox_chartmenu.addWidget(self.filter_combobox)
+        vbox_chartmenu.addWidget(self.filter_combobox)
 
+        # Data
         wid = QPushButton("Reload from Yahoo Finance")
         wid.released.connect(self.load_data_from_yahoo_finance)
-        self.vbox_data.addWidget(wid)
-
+        vbox_data.addWidget(wid)
         wid = QPushButton("Save data to file")
         wid.released.connect(stock_data.save_to_csv)
-        self.vbox_data.addWidget(wid)
-
+        vbox_data.addWidget(wid)
         wid = QPushButton("Load data from file")
         wid.released.connect(self.load_data_from_file)
-        self.vbox_data.addWidget(wid)
+        vbox_data.addWidget(wid)
+        vbox_data.addSpacing(100)
 
-        wid = QPushButton("Train model")
-        wid.released.connect(lambda: self.train_model(persist_location="data/trainedmodel"))
-        self.vbox_data.addWidget(wid)
+        # Model
 
+        vbox_data.addWidget(QLabel("Model Name:"))
+        model_name = QLineEdit()
+        model_name.setToolTip("The name of the model that will be created or loaded. Leave blank for default: "
+                              "'trainedmodel'.")
+        vbox_data.addWidget(model_name)
+        wid = QPushButton("Create model")
+        wid.released.connect(lambda: self.train_model(location=model_name.text()))
+        vbox_data.addWidget(wid)
         wid = QPushButton("Load model")
-        wid.released.connect(self.load_model)
-        self.vbox_data.addWidget(wid)
+        wid.released.connect(lambda: self.load_model(location=model_name.text()))
+        vbox_data.addWidget(wid)
 
         userpage_button = QPushButton("User")
         userpage_button.released.connect(lambda: self.change_page("User"))
         hbox_title.addWidget(userpage_button)
 
         wid = QLabel("")
-        self.vbox_prediction.addWidget(wid)
+        vbox_prediction.addWidget(wid)
 
         # Main chart
         self.mainChart = MplCanvas(self)
-        self.hbox_main.addWidget(self.mainChart, 5)
-        self.prices_df = None
+        hbox_main.addWidget(self.mainChart, 5)
 
         # Set layout hierarchy
-        self.vbox_pagechart.addLayout(hbox_title, 1)
-        self.vbox_pagechart.addLayout(self.hbox_main, 5)
-        self.hbox_main.addLayout(self.vbox_sidebar, 1)
-        self.vbox_sidebar.addLayout(self.vbox_chartmenu, 1)
-        self.vbox_sidebar.addLayout(self.vbox_prediction, 2)
-        self.vbox_sidebar.addLayout(self.vbox_data, 1)
+        vbox_pagechart.addLayout(hbox_title, 1)
+        vbox_pagechart.addLayout(hbox_main, 5)
+        hbox_main.addLayout(vbox_sidebar, 1)
+        vbox_sidebar.addLayout(vbox_chartmenu, 1)
+        vbox_sidebar.addLayout(vbox_prediction, 2)
+        vbox_sidebar.addLayout(vbox_data, 1)
 
     def _setup_login_page(self):
         # Login page
@@ -374,8 +375,13 @@ class MainWindow(QMainWindow):
         for stockname in list(stock_data.stockdict.keys()):
             self.filter_combobox.addItem(stockname, userData=stock_data.get_symbol(stockname))
 
-    def load_model(self):
-        self.thread(learning_model.load_predictor("data/trainedmodel"), on_finish=self.model_ready)
+    def load_model(self, location):
+        if not isinstance(location, str):
+            _logger.error(f"Model location ({location}) is invalid.")
+            location = None
+        if location is None or location == "":
+            location = "trainedmodel"
+        self.thread(learning_model.load_predictor(f"data/{location}"), on_finish=self.model_ready)
 
     # Chart drawing
     def clear_chart(self):
@@ -438,13 +444,20 @@ class MainWindow(QMainWindow):
         self.draw_single_stock(stocksymbol, predictions)
 
     # Model training
-    def train_model(self, persist_location=None):
+    def train_model(self, location=None):
+
+        if not isinstance(location, str):
+            _logger.error(f"Model location ({location}) is invalid.")
+            location = None
+        if location is None or location == "":
+            location = "trainedmodel"
+
         if learning_model is not None:
             self.clear_chart()
             self.mainChart.axes.text(0,0,"Loading...")
             self.mainChart.draw()
 
-            self.thread(function=learning_model.train_model, on_finish=self.model_ready, persist_location=persist_location)
+            self.thread(function=learning_model.train_model, on_finish=self.model_ready, persist_location=f"data/{location}")
         else:
             raise Exception("Learning model instance not initialised.")
 
