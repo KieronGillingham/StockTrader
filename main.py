@@ -12,7 +12,8 @@ from typing import List
 
 # PyQt
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, \
-    QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit, QTabWidget, QMessageBox, QBoxLayout, QDateEdit
+    QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit, QTabWidget, QMessageBox, QBoxLayout, QDateEdit, \
+    QCheckBox
 from PyQt5.QtCore import QTimer, QThreadPool, QDateTime, QDate, pyqtSignal
 
 # Threading
@@ -156,6 +157,11 @@ class MainWindow(QMainWindow):
         wid.released.connect(lambda: self.load_data_from_file(start_date=self.data_start_date.date(),
                                                               end_date=self.data_end_date.date()))
         vbox_data.addWidget(wid)
+        show_approx_checkbox = QCheckBox()
+        show_approx_checkbox.setText("Show approximation")
+        show_approx_checkbox.setToolTip("Show approximations used in accuracy calculations.")
+        show_approx_checkbox.stateChanged.connect(lambda: self.show_approximations(show=show_approx_checkbox.isChecked()))
+        vbox_data.addWidget(show_approx_checkbox)
         vbox_data.addSpacing(100)
 
         # Model
@@ -377,7 +383,7 @@ class MainWindow(QMainWindow):
         self.thread(stock_data.load_data_from_yahoo_finance, start_date=start_date, end_date=end_date,
                     time_interval=time_interval, stocksymbols=stocksymbols, on_finish=self.data_loaded)
 
-    def load_data_from_file(self):
+    def load_data_from_file(self, start_date=None, end_date=None):
         self.thread(stock_data.load_from_csv, on_finish=self.data_loaded)
 
     def data_loaded(self):
@@ -413,18 +419,25 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.axis('off')
         self.mainChart.draw()
 
-    def draw_single_stock(self, stocksymbol, prediction=None):
+    def draw_chart(self, stocksymbol, prediction=None, approximation=None):
 
+        colours = ['b', 'y', 'g']
         self.clear_chart()
 
         data = stock_data.data.filter(like=stocksymbol + "_close")
 
-        self.mainChart.axes.plot(data)
+        self.mainChart.axes.plot(data, color=colours[0])
+        legend = ["Past values"]
         self.mainChart.axes.axis('on')
         if prediction is not None:
-            self.mainChart.axes.plot(prediction, linestyle='--')
+            self.mainChart.axes.plot(prediction, linestyle='--', color=colours[1])
+            legend.append("Predictions")
 
-        self.mainChart.axes.legend(data.columns.tolist(), loc='upper left')
+        if approximation is not None:
+            self.mainChart.axes.plot(approximation, linestyle='--', color=colours[2])
+            legend.append("Approximation")
+
+        self.mainChart.axes.legend(legend, loc='upper left')
 
         self.mainChart.axes.grid(True)
         self.mainChart.draw()
@@ -437,34 +450,28 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.set_xticklabels(labels)
         self.mainChart.draw()
 
-    def draw_chart(self, data: List, prediction: List = None):
-        self.clear_chart()
-
-        p = self.mainChart.axes.plot(data)
-        self.mainChart.axes.legend(data.columns.tolist())
-
-        if prediction is not None:
-            if len(data.columns) != len(prediction.columns):
-                raise Exception('Historical and prediction lists are not equal length.')
-
-            for i in range (0, len(prediction.columns)):
-                self.mainChart.axes.plot(prediction.iloc(axis=1)[i], linestyle='--', color=p[i].get_color())
-
-        self.mainChart.draw()
-
     def filter_changed(self, value):
         _logger.debug(f"{self.filter_combobox.itemText(value)} ({self.filter_combobox.itemData(value)}) selected.")
         stocksymbol = self.filter_combobox.itemData(value)
         if stocksymbol is not None:
             self.show_stock(stocksymbol)
 
-    def show_stock(self, stocksymbol):
+    def show_stock(self, stocksymbol, with_approx=False):
         predictions = None
         if learning_model.predictor is not None:
             if learning_model.predictor.model is not None:
                 predictions = learning_model.get_predictions(stocksymbol)
 
-        self.draw_single_stock(stocksymbol, predictions)
+        approximations = None
+        if with_approx:
+            approximations = learning_model.get_approximation(stocksymbol)
+
+        self.draw_chart(stocksymbol, predictions, approximations)
+
+    def show_approximations(self, show=True):
+        if stock_data.data is not None:
+            self.show_stock(self.filter_combobox.currentData(), with_approx=show)
+
 
     # Model training
     def train_model(self, location=None):

@@ -1,5 +1,8 @@
 # Logging
 import logging
+
+from sklearn.linear_model import LinearRegression
+
 _logger = logging.getLogger(__name__)
 
 # General
@@ -44,38 +47,101 @@ class LearningModel():
             self.set_data(data)
 
     def set_data(self, data):
+        """
+        Set the DataFrame to be used for training a model.
+        :param data: The DataFrame to use.
+        :return: True if DataFrame is set successfully; False otherwise.
+        """
+
+        # Check data is DataFrame
         if isinstance(data, pd.DataFrame):
-            if not {"year", "month", "day", "weekday", "week", "dayofyear"}.issubset(data.columns):
-                print(data.shape)
+            # If data doesn't contain deconstructed date columns
+            if not set(self.datecolumns).issubset(data.columns):
+                # Turn data index into date columns
                 data = data.join(self.deconstruct_date(data.index))
-                print(data.shape)
-                print(data)
+            # Set the data
             self.data = data
             return True
         else:
             return False
 
-    def train_model(self, persist_location=None, *args, **kwargs):
+    def train_model(self, model_type="mlp", persist_location=None, data=None, *args, **kwargs):
+        """
+        Train a machine learning model to forecast stock prices.
+        :param data: The dataset to be used for training.
+        :return: None.
+        """
+        if model_type not in {"mlp", "linear"}:
+            _logger.error(f"Model type '{model_type}' not recognised.")
+            return False
+
         if self.predictor is None:
             self.predictor = Predictor()
 
+        # Use object dataset if no alternative provided.
+        if data is None:
+            data = self.data
+
+        # Stop if no dataset is available for training.
+        if data is None:
+            _logger.error("No dataset available for training.")
+            return
+
+        # Sort the dataset chronologically.
+        data.sort_index(inplace=True)
+
+        # Get datestamps of earliest and latest records from the data.
+        earliest_datestamp = data.index.min()
+        latest_datestamp = data.index.max()
+        _logger.debug(f"Preparing to train model on data between {date.fromtimestamp(earliest_datestamp)} and "
+                      f"{date.fromtimestamp(latest_datestamp)}.")
+
+        # Get independent variables for model input (dates)
+        x = data[self.datecolumns]
+        _logger.debug(f"X data size: {x.shape}")
+
+        # Get dependent variables for model output (stock prices)
+        y = data.drop(self.datecolumns, 1)
+        _logger.debug(f"Y data size: {y.shape}")
+
+        _logger.debug(x)
+        _logger.debug(y)
+
+        # Create data scaler - Keep reference for later unscaling
+        self.predictor.scaler = StandardScaler()
+
+        # Scale y
+        self.predictor.scaler.fit(y)
+        y = self.predictor.scaler.transform(y)
+
         try:
-            self.train_mlp_model(self.data)
+            if model_type == "mlp":
+                self.train_mlp_model(x, y)
+            elif model_type == "linear":
+                self.train_linear_model(x, y)
+            else:
+                raise Exception(f"Model missing {model_type}.")
         except Exception as ex:
             _logger.error(ex)
+            return False
 
         if self.predictor.model is not None:
             _logger.debug("Model trained.")
+            # If persist location is given, save the model out to a file
             if persist_location is not None:
                 try:
                     self.predictor.save(location=persist_location)
                     _logger.info(f"Model persisted to {persist_location}.")
                 except FileNotFoundError as ex:
                     _logger.error(f"Persist location for model could not be found: {ex}")
+                    return False
                 except Exception as ex:
                     _logger.error(ex)
+                    return False
+            return True
         else:
             _logger.error("Problem training model.")
+        return False
 
     def load_predictor(self, predictor_location):
         try:
@@ -159,7 +225,34 @@ class LearningModel():
                 _logger.error("Wrong length predictions.")
             prediction = pd.DataFrame(data=predictions, index=[prediction_date_stamp], columns=self.data.columns[:-6])
             return prediction[f"{stock}_close"].values[0]
-    # def linear_model_prediction(self, stock, prediction_date_stamp):
+
+    def train_linear_model(self, x, y):
+        """
+        Train a linear model to forecast stock prices.
+        :param data: The dataset to be used for training.
+        :return: None.
+        """
+        _logger.debug("Beginning hyperparameter tuning and model training.")
+        params = [
+            {
+                "random_state": [self.seed],
+                "solver": ["lbfgs"],  # ["lbfgs", "adam"],
+                "hidden_layer_sizes": [(2, 5)],  # 200, 500
+
+                # "hidden_layer_sizes": [(2), (5), (5, 5), (5, 10), (20)],#, (10, 10), (10, 20), (40, 40), (50, 100), (100, 200), (200, 300), (20, 40, 20), (20, 50, 20), (50, 100, 50), (20, 40, 40, 20), (10, 20, 20, 10), (10, 20, 20, 20, 10)],
+                "max_iter": [10],  # 2000
+                "verbose": [True]
+            }
+        ]
+
+        regressor = GridSearchCV(LinearRegression(), params)
+        regressor.fit(x, y)
+
+        _logger.debug(regressor.best_params_)
+
+        self.predictor.model = regressor
+
+    #def linear_model_prediction(self, stock, prediction_date_stamp):
     #     latest_date_stamp = self.data.index.max()
     #
     #     y = self.data[f"{stock}_close"].values
@@ -170,8 +263,7 @@ class LearningModel():
     #     x = x.reshape(-1, 1)
     #     #for i in range(0, len(self.prices_df.columns)):
     #     #     y = self.prices_df.iloc[:, i].values
-    #     model = LinearRegression()
-    #     model.fit(x, y)
+    #
     #     prediction = model.predict([[prediction_date_stamp]])
     #
     #     _logger.debug(f"{self.data[f'{stock}_close'][latest_date_stamp]} -> {prediction[0]}")
@@ -267,58 +359,16 @@ class LearningModel():
     #
     #     return pred_df
 
-    def train_mlp_model(self, data=None):
-        """
-        Train a Multilayer Perceptron model to forecast stock prices. The model is
-        :param data: The dataset to be used for training.
-        :return: None.
-        """
-        # Use object dataset if no alternative provided.
-        if data is None:
-            data = self.data
-
-        # Stop if no dataset is available for training.
-        if data is None:
-            _logger.error("No dataset available for training.")
-            return
-
-        # Sort the dataset chronologically.
-        data.sort_index(inplace=True)
-
-        # Get datestamps earliest and latest records from the data.
-        earliest_datestamp = data.index.min()
-        latest_datestamp = data.index.max()
-        _logger.debug(f"Preparing to train model on data between {date.fromtimestamp(earliest_datestamp)} and "
-                      f"{date.fromtimestamp(latest_datestamp)}.")
-
-        # Get independent variables for model input (dates)
-        x = data[self.datecolumns]
-        _logger.debug(f"X data size: {x.shape}")
-
-        # Get dependent variables for model output (stock prices)
-        y = data.drop(self.datecolumns, 1)
-        # y = y["TYT.L_close"]
-        _logger.debug(f"Y data size: {y.shape}")
-
-        _logger.debug(x)
-        _logger.debug(y)
-
-        # Create data scaler - Keep reference for later unscaling
-        self.predictor.scaler = StandardScaler()
-
-        # Scale y
-        self.predictor.scaler.fit(y)
-        y = self.predictor.scaler.transform(y)
-        
+    def train_mlp_model(self, x, y):
         _logger.debug("Beginning hyperparameter tuning and model training.")
         params = [
             {
                 "random_state": [self.seed],
                 "solver": ["lbfgs"],#["lbfgs", "adam"],
-                "hidden_layer_sizes": [(200, 500)],
+                "hidden_layer_sizes": [(2, 5)], # 200, 500
 
                 #"hidden_layer_sizes": [(2), (5), (5, 5), (5, 10), (20)],#, (10, 10), (10, 20), (40, 40), (50, 100), (100, 200), (200, 300), (20, 40, 20), (20, 50, 20), (50, 100, 50), (20, 40, 40, 20), (10, 20, 20, 10), (10, 20, 20, 20, 10)],
-                "max_iter": [1000],
+                "max_iter": [10], # 2000
                 "verbose": [True]
             }
         ]
@@ -331,9 +381,16 @@ class LearningModel():
         self.predictor.model = regressor
 
     def deconstruct_date(self, datestamps):
-
+        """
+        Split datestamps in a list into 6 integer columns: Year, Month, Day, Day of the week, Week of the year, and Day
+        of the year.
+        @:param datestamps: A list of datestamps to deconstruct.
+        @:returns A DataFrame containing the deconstructed elements of the input datestamps.
+        """
+        # Convert datestamps into date objects
         dates = [date.fromtimestamp(datestamp) for datestamp in datestamps]
 
+        # Deconstruct each date into it's components
         deconstructed_dates = [
             [
                 dateobj.year,
@@ -345,35 +402,12 @@ class LearningModel():
             ]
             for dateobj in dates
         ]
-        print(deconstructed_dates)
 
+        # Put dates into a DataFrame
         dates = pd.DataFrame(data=deconstructed_dates, index=datestamps, columns=self.datecolumns)
+
+        # Return the result
         return dates
-
-        # print(pd.to_datetime(input_dates, format="%d/%m/%Y"))
-        # print(dates)
-
-        # dates['Date'] = pd.to_datetime(input_dates)
-        # dates['Date'] = dates['Date'].dt.strftime('%d.%m.%Y')
-        # dates['year'] = pd.DatetimeIndex(dates['Date']).year
-        # dates['month'] = pd.DatetimeIndex(dates['Date']).month
-        # dates['day'] = pd.DatetimeIndex(dates['Date']).day
-        # dates['dayofyear'] = pd.DatetimeIndex(dates['Date']).dayofyear
-        # dates['weekofyear'] = pd.DatetimeIndex(dates['Date']).weekofyear
-        # dates['weekday'] = pd.DatetimeIndex(dates['Date']).weekday
-        # dates['quarter'] = pd.DatetimeIndex(dates['Date']).quarter
-        # dates['is_month_start'] = pd.DatetimeIndex(dates['Date']).is_month_start
-        # dates['is_month_end'] = pd.DatetimeIndex(dates['Date']).is_month_end
-        #
-        # print(dates)
-
-        #input_date = date.fromtimestamp(input_date)
-        #return [
-        #    input_date.year,
-        #    input_date.month,
-        #    input_date.day,
-        #    input_date.weekday()
-        #]
 
     def _check_data(self):
         if self.data is None:
@@ -383,7 +417,7 @@ class LearningModel():
             _logger.error("Dataset is not a dataframe. Please use `set_data()` to recreate the dataframe.")
             return False
         return True
-    #
+
     # def calculate_return(self, investments : list):
     #     if self.predictor is None:
     #         # Must create or load a predictor first
@@ -412,6 +446,14 @@ class LearningModel():
     #             _logger.error(ex)
     #
     #     return total
+
+    def get_approximation(self, stock):
+        earliest_date = self.data.index.min()
+        latest_date = self.data.index.max()
+        mean = self.data[f"{stock}_close"].mean()
+        approx = pd.DataFrame([mean, mean], index=[earliest_date, latest_date])
+        print(approx)
+        return approx
 
 class Predictor:
 
