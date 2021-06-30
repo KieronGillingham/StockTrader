@@ -170,8 +170,13 @@ class MainWindow(QMainWindow):
         model_name.setToolTip("The name of the model that will be created or loaded. Leave blank for default: "
                               "'trainedmodel'.")
         vbox_data.addWidget(model_name)
+        model_type = QComboBox()
+        model_type.setToolTip("The type of the model to train.")
+        for type in learning_model.models.keys():
+            model_type.addItem(type, learning_model.models[type])
+        vbox_data.addWidget(model_type)
         wid = QPushButton("Create model")
-        wid.released.connect(lambda: self.train_model(location=model_name.text()))
+        wid.released.connect(lambda: self.train_model(location=model_name.text(), type=model_type.currentData()))
         vbox_data.addWidget(wid)
         wid = QPushButton("Load model")
         wid.released.connect(lambda: self.load_model(location=model_name.text()))
@@ -474,7 +479,7 @@ class MainWindow(QMainWindow):
 
 
     # Model training
-    def train_model(self, location=None):
+    def train_model(self, location=None, type=None):
 
         if not isinstance(location, str):
             _logger.error(f"Model location ({location}) is invalid.")
@@ -487,7 +492,9 @@ class MainWindow(QMainWindow):
             self.mainChart.axes.text(0,0,"Loading...")
             self.mainChart.draw()
 
-            self.thread(function=learning_model.train_model, on_finish=self.model_ready, persist_location=f"data/{location}")
+            train_test_cutoff_date = date.today() - timedelta(days=30)
+            train_test_cutoff = calendar.timegm(train_test_cutoff_date.timetuple())
+            self.thread(function=learning_model.train_model, train_test_cutoff=train_test_cutoff, model_type=type, on_finish=self.model_ready, persist_location=f"data/{location}")
         else:
             raise Exception("Learning model instance not initialised.")
 

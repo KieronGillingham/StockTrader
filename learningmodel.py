@@ -30,6 +30,11 @@ class LearningModel():
         "NEXTMONTH": 2592000  # 60*60*24 * 30
     }
 
+    models = {
+        "Quick Multi-Layer Perceptron": "mlp-fast",
+        "Full Multi-Layer Perceptron": "mlp"
+    }
+
     # Seed for repeatability of random number generation
     seed = 98628
 
@@ -65,15 +70,15 @@ class LearningModel():
         else:
             return False
 
-    def train_model(self, model_type="mlp", persist_location=None, data=None, *args, **kwargs):
+    def train_model(self, model_type="mlp", persist_location=None, data=None, train_test_cutoff=None, *args, **kwargs):
         """
         Train a machine learning model to forecast stock prices.
         :param data: The dataset to be used for training.
         :return: None.
         """
-        if model_type not in {"mlp", "linear"}:
+        if model_type not in self.models.values():
             _logger.error(f"Model type '{model_type}' not recognised.")
-            return False
+            return
 
         if self.predictor is None:
             self.predictor = Predictor()
@@ -87,46 +92,65 @@ class LearningModel():
             _logger.error("No dataset available for training.")
             return
 
+        test_data = None
+
         # Sort the dataset chronologically.
         data.sort_index(inplace=True)
 
+        print(data.index)
+
         # Get datestamps of earliest and latest records from the data.
         earliest_datestamp = data.index.min()
-        latest_datestamp = data.index.max()
+        print(earliest_datestamp)
+        if train_test_cutoff is not None:
+            latest_datestamp = train_test_cutoff
+            test_data = data.loc[train_test_cutoff:]
+            x_test = test_data[self.datecolumns]
+            _logger.debug(f"X test data size: {x_test.shape}")
+            y_test = test_data.drop(self.datecolumns, 1)
+            _logger.debug(f"Y test data size: {y_test.shape}")
+            print(test_data.index)
+        else:
+            latest_datestamp = data.index.max()
+        print(latest_datestamp)
         _logger.debug(f"Preparing to train model on data between {date.fromtimestamp(earliest_datestamp)} and "
                       f"{date.fromtimestamp(latest_datestamp)}.")
 
+        train_data = data.loc[earliest_datestamp:latest_datestamp]
+        print(train_data.index)
+
         # Get independent variables for model input (dates)
-        x = data[self.datecolumns]
-        _logger.debug(f"X data size: {x.shape}")
+        x_train = train_data[self.datecolumns]
+        _logger.debug(f"X train data size: {x_train.shape}")
 
         # Get dependent variables for model output (stock prices)
-        y = data.drop(self.datecolumns, 1)
-        _logger.debug(f"Y data size: {y.shape}")
-
-        _logger.debug(x)
-        _logger.debug(y)
+        y_train = train_data.drop(self.datecolumns, 1)
+        _logger.debug(f"Y train data size: {y_train.shape}")
 
         # Create data scaler - Keep reference for later unscaling
         self.predictor.scaler = StandardScaler()
 
         # Scale y
-        self.predictor.scaler.fit(y)
-        y = self.predictor.scaler.transform(y)
+        self.predictor.scaler.fit(y_train)
+        y_train = self.predictor.scaler.transform(y_train)
 
         try:
             if model_type == "mlp":
-                self.train_mlp_model(x, y)
-            elif model_type == "linear":
-                self.train_linear_model(x, y)
+                self.train_mlp_model(x_train, y_train)
+            elif model_type == "mlp-fast":
+                self.train_mlp_model(x_train, y_train, fast=True)
             else:
                 raise Exception(f"Model missing {model_type}.")
         except Exception as ex:
             _logger.error(ex)
-            return False
+            return
 
         if self.predictor.model is not None:
             _logger.debug("Model trained.")
+
+            # TODO: Implement
+            accuracy = None
+
             # If persist location is given, save the model out to a file
             if persist_location is not None:
                 try:
@@ -134,14 +158,16 @@ class LearningModel():
                     _logger.info(f"Model persisted to {persist_location}.")
                 except FileNotFoundError as ex:
                     _logger.error(f"Persist location for model could not be found: {ex}")
-                    return False
+                    return
                 except Exception as ex:
                     _logger.error(ex)
-                    return False
-            return True
+                    return
+
+            if test_data is not None:
+                _logger.info(f"Score: {self.predictor.model.score(x_test, y_test)}")
         else:
             _logger.error("Problem training model.")
-        return False
+        return
 
     def load_predictor(self, predictor_location):
         try:
@@ -359,19 +385,27 @@ class LearningModel():
     #
     #     return pred_df
 
-    def train_mlp_model(self, x, y):
+    def train_mlp_model(self, x, y, fast=False):
         _logger.debug("Beginning hyperparameter tuning and model training.")
-        params = [
-            {
-                "random_state": [self.seed],
-                "solver": ["lbfgs"],#["lbfgs", "adam"],
-                "hidden_layer_sizes": [(2, 5)], # 200, 500
-
-                #"hidden_layer_sizes": [(2), (5), (5, 5), (5, 10), (20)],#, (10, 10), (10, 20), (40, 40), (50, 100), (100, 200), (200, 300), (20, 40, 20), (20, 50, 20), (50, 100, 50), (20, 40, 40, 20), (10, 20, 20, 10), (10, 20, 20, 20, 10)],
-                "max_iter": [10], # 2000
-                "verbose": [True]
-            }
-        ]
+        if fast:
+            params = [
+                {
+                    "random_state": [self.seed],
+                    "solver": ["lbfgs"],
+                    "hidden_layer_sizes": [(2), (5), (2, 5), (5, 5), (10), (5, 10)],
+                    "max_iter": [20],
+                }
+            ]
+        else:
+            params = [
+                {
+                    "random_state": [self.seed],
+                    "solver": ["lbfgs"],  # ["lbfgs", "adam"],
+                    "hidden_layer_sizes": [(2), (5), (5, 5), (5, 10), (20), (10, 10), (10, 20), (40, 40), (50, 100), (100, 200), (200, 300), (20, 40, 20), (20, 50, 20), (50, 100, 50), (20, 40, 40, 20), (10, 20, 20, 10), (10, 20, 20, 20, 10)],
+                    "max_iter": [10, 20, 50, 100, 200, 500],  # 2000
+                    "verbose": [True]
+                }
+            ]
 
         regressor = GridSearchCV(MLPRegressor(), params)
         regressor.fit(x, y)
