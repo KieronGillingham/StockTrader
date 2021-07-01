@@ -1,6 +1,7 @@
 # Logging
 import logging
 
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 
 _logger = logging.getLogger(__name__)
@@ -32,7 +33,8 @@ class LearningModel():
 
     models = {
         "Quick Multi-Layer Perceptron": "mlp-fast",
-        "Full Multi-Layer Perceptron": "mlp"
+        "Full Multi-Layer Perceptron": "mlp",
+        "Random Forest": "randfor"
     }
 
     # Seed for repeatability of random number generation
@@ -128,15 +130,19 @@ class LearningModel():
         # Create data scaler - Keep reference for later unscaling
         self.predictor.scaler = StandardScaler()
 
-        # Scale y
+        # Scale y(s)
         self.predictor.scaler.fit(y_train)
         y_train = self.predictor.scaler.transform(y_train)
+        if test_data is not None:
+            y_test = self.predictor.scaler.transform(y_test)
 
         try:
             if model_type == "mlp":
                 self.train_mlp_model(x_train, y_train)
             elif model_type == "mlp-fast":
                 self.train_mlp_model(x_train, y_train, fast=True)
+            elif model_type == "randfor":
+                self.train_randomforest_model(x_train, y_train)
             else:
                 raise Exception(f"Model missing {model_type}.")
         except Exception as ex:
@@ -250,9 +256,9 @@ class LearningModel():
             prediction = pd.DataFrame(data=predictions, index=[prediction_date_stamp], columns=self.data.columns[:-6])
             return prediction[f"{stock}_close"].values[0]
 
-    def train_linear_model(self, x, y):
+    def train_randomforest_model(self, x, y):
         """
-        Train a linear model to forecast stock prices.
+        Train a random forest model to forecast stock prices.
         :param data: The dataset to be used for training.
         :return: None.
         """
@@ -260,16 +266,14 @@ class LearningModel():
         params = [
             {
                 "random_state": [self.seed],
-                "solver": ["lbfgs"],  # ["lbfgs", "adam"],
-                "hidden_layer_sizes": [(2, 5)],  # 200, 500
-
-                # "hidden_layer_sizes": [(2), (5), (5, 5), (5, 10), (20)],#, (10, 10), (10, 20), (40, 40), (50, 100), (100, 200), (200, 300), (20, 40, 20), (20, 50, 20), (50, 100, 50), (20, 40, 40, 20), (10, 20, 20, 10), (10, 20, 20, 20, 10)],
-                "max_iter": [10],  # 2000
+                "n_estimators": [10, 20, 50, 100],
+                "criterion": ["mse"],
+                "max_depth": [1, 2, 5, 10, 20],
                 "verbose": [True]
             }
         ]
 
-        regressor = GridSearchCV(LinearRegression(), params)
+        regressor = GridSearchCV(RandomForestRegressor(), params)
         regressor.fit(x, y)
 
         _logger.debug(regressor.best_params_)
@@ -390,8 +394,9 @@ class LearningModel():
                 {
                     "random_state": [self.seed],
                     "solver": ["lbfgs"],
-                    "hidden_layer_sizes": [(2), (5), (2, 5), (5, 5), (10), (5, 10)],
-                    "max_iter": [20],
+                    "alpha": 1.0 ** -np.arange(1, 5),
+                    "hidden_layer_sizes": [(5, 10), (20)],
+                    "max_iter": [20]
                 }
             ]
         else:
@@ -399,9 +404,9 @@ class LearningModel():
                 {
                     "random_state": [self.seed],
                     "solver": ["lbfgs"],  # ["lbfgs", "adam"],
-                    "hidden_layer_sizes": [(2), (5), (5, 5), (5, 10), (20), (10, 10), (10, 20), (40, 40), (50, 100), (100, 200), (200, 300), (20, 40, 20), (20, 50, 20), (50, 100, 50), (20, 40, 40, 20), (10, 20, 20, 10), (10, 20, 20, 20, 10)],
+                    "alpha": 1.0 ** -np.arange(1, 5),
+                    "hidden_layer_sizes": [(5, 10), (20), (10, 20), (40, 40), (50, 100), (100, 200), (200, 300), (20, 40, 20), (20, 50, 20), (50, 100, 50), (20, 40, 40, 20), (10, 20, 20, 10), (10, 20, 20, 20, 10)],
                     "max_iter": [10, 20, 50, 100, 200, 500],  # 2000
-                    "verbose": [True]
                 }
             ]
 
