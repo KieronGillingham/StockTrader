@@ -166,12 +166,11 @@ class MainWindow(QMainWindow):
         wid.released.connect(lambda: self.load_data_from_file(start_date=self.data_start_date.date(),
                                                               end_date=self.data_end_date.date()))
         vbox_data.addWidget(wid)
-        show_approx_checkbox = QCheckBox()
-        show_approx_checkbox.setText("Show approximation")
-        show_approx_checkbox.setToolTip("Show approximations used in accuracy calculations.")
-        show_approx_checkbox.stateChanged.connect(lambda:
-                                                  self.show_approximations(show=show_approx_checkbox.isChecked()))
-        vbox_data.addWidget(show_approx_checkbox)
+        self.show_approx_checkbox = QCheckBox()
+        self.show_approx_checkbox.setText("Show approximation")
+        self.show_approx_checkbox.setToolTip("Show approximations used in accuracy calculations.")
+        self.show_approx_checkbox.stateChanged.connect(self.show_approximations)
+        vbox_data.addWidget(self.show_approx_checkbox)
         vbox_data.addSpacing(100)
 
         # Model
@@ -480,22 +479,21 @@ class MainWindow(QMainWindow):
         if stocksymbol is not None:
             self.show_stock(stocksymbol)
 
-    def show_stock(self, stocksymbol, with_approx=False):
+    def show_approximations(self):
+        if stock_data.data is not None:
+            self.show_stock(self.filter_combobox.currentData())
+
+    def show_stock(self, stocksymbol):
         predictions = None
         if learning_model.predictor is not None:
             if learning_model.predictor.model is not None:
                 predictions = learning_model.get_predictions(stocksymbol)
 
         approximations = None
-        if with_approx:
+        if self.show_approx_checkbox.isChecked():
             approximations = learning_model.get_approximation(stocksymbol)
 
         self.draw_chart(stocksymbol, predictions, approximations)
-
-    def show_approximations(self, show=True):
-        if stock_data.data is not None:
-            self.show_stock(self.filter_combobox.currentData(), with_approx=show)
-
 
     # Model training
     def train_model(self, location=None, type=None, testingrange=None):
