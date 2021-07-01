@@ -97,27 +97,25 @@ class LearningModel():
         # Sort the dataset chronologically.
         data.sort_index(inplace=True)
 
-        print(data.index)
-
         # Get datestamps of earliest and latest records from the data.
         earliest_datestamp = data.index.min()
-        print(earliest_datestamp)
         if train_test_cutoff is not None:
             latest_datestamp = train_test_cutoff
-            test_data = data.loc[train_test_cutoff:]
-            x_test = test_data[self.datecolumns]
-            _logger.debug(f"X test data size: {x_test.shape}")
-            y_test = test_data.drop(self.datecolumns, 1)
-            _logger.debug(f"Y test data size: {y_test.shape}")
-            print(test_data.index)
+            if latest_datestamp <= earliest_datestamp:
+                _logger.warning("Insufficient data to train with. Ignoring testing.")
+                latest_datestamp = data.index.max()
+            else:
+                test_data = data.loc[train_test_cutoff:]
+                x_test = test_data[self.datecolumns]
+                _logger.debug(f"X test data size: {x_test.shape}")
+                y_test = test_data.drop(self.datecolumns, 1)
+                _logger.debug(f"Y test data size: {y_test.shape}")
         else:
             latest_datestamp = data.index.max()
-        print(latest_datestamp)
         _logger.debug(f"Preparing to train model on data between {date.fromtimestamp(earliest_datestamp)} and "
                       f"{date.fromtimestamp(latest_datestamp)}.")
 
         train_data = data.loc[earliest_datestamp:latest_datestamp]
-        print(train_data.index)
 
         # Get independent variables for model input (dates)
         x_train = train_data[self.datecolumns]

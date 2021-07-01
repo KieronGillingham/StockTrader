@@ -49,6 +49,15 @@ class MainWindow(QMainWindow):
         "User": 4,
     }
 
+    testingranges = {
+        "No testing": None,
+        "Last 3 days": 3,
+        "Last week": 7,
+        "Last 2 weeks": 14,
+        "Last month": 30,
+        "Last 2 months": 60
+    }
+
     # Current user
     user = None
 
@@ -160,23 +169,33 @@ class MainWindow(QMainWindow):
         show_approx_checkbox = QCheckBox()
         show_approx_checkbox.setText("Show approximation")
         show_approx_checkbox.setToolTip("Show approximations used in accuracy calculations.")
-        show_approx_checkbox.stateChanged.connect(lambda: self.show_approximations(show=show_approx_checkbox.isChecked()))
+        show_approx_checkbox.stateChanged.connect(lambda:
+                                                  self.show_approximations(show=show_approx_checkbox.isChecked()))
         vbox_data.addWidget(show_approx_checkbox)
         vbox_data.addSpacing(100)
 
         # Model
-        vbox_data.addWidget(QLabel("Model Name:"))
+        vbox_data.addWidget(QLabel("Model name:"))
         model_name = QLineEdit()
         model_name.setToolTip("The name of the model that will be created or loaded. Leave blank for default: "
                               "'trainedmodel'.")
         vbox_data.addWidget(model_name)
+        vbox_data.addWidget(QLabel("Model type:"))
         model_type = QComboBox()
         model_type.setToolTip("The type of the model to train.")
         for type in learning_model.models.keys():
             model_type.addItem(type, learning_model.models[type])
         vbox_data.addWidget(model_type)
+        vbox_data.addWidget(QLabel("Testing data:"))
+        test_range = QComboBox()
+        test_range.setToolTip("The amount of data to withhold from training to test the model.")
+        for type in self.testingranges.keys():
+            test_range.addItem(type, self.testingranges[type])
+        vbox_data.addWidget(test_range)
         wid = QPushButton("Create model")
-        wid.released.connect(lambda: self.train_model(location=model_name.text(), type=model_type.currentData()))
+        wid.released.connect(lambda: self.train_model(location=model_name.text(),
+                                                      type=model_type.currentData(),
+                                                      testingrange=test_range.currentData()))
         vbox_data.addWidget(wid)
         wid = QPushButton("Load model")
         wid.released.connect(lambda: self.load_model(location=model_name.text()))
@@ -479,7 +498,7 @@ class MainWindow(QMainWindow):
 
 
     # Model training
-    def train_model(self, location=None, type=None):
+    def train_model(self, location=None, type=None, testingrange=None):
 
         if not isinstance(location, str):
             _logger.error(f"Model location ({location}) is invalid.")
@@ -492,8 +511,10 @@ class MainWindow(QMainWindow):
             self.mainChart.axes.text(0,0,"Loading...")
             self.mainChart.draw()
 
-            train_test_cutoff_date = date.today() - timedelta(days=30)
-            train_test_cutoff = calendar.timegm(train_test_cutoff_date.timetuple())
+            train_test_cutoff = None
+            if testingrange is not None:
+                train_test_cutoff_date = date.today() - timedelta(days=testingrange)
+                train_test_cutoff = calendar.timegm(train_test_cutoff_date.timetuple())
             self.thread(function=learning_model.train_model, train_test_cutoff=train_test_cutoff, model_type=type, on_finish=self.model_ready, persist_location=f"data/{location}")
         else:
             raise Exception("Learning model instance not initialised.")
