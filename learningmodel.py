@@ -18,6 +18,7 @@ import numpy as np
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import mean_squared_error, mean_absolute_error, explained_variance_score, r2_score
 
 # Persistance
 from joblib import dump, load
@@ -42,6 +43,7 @@ class LearningModel():
 
     # Data to train models with
     data = None
+    test_data = None
 
     # Current trained predictor
     predictor = None
@@ -94,7 +96,7 @@ class LearningModel():
             _logger.error("No dataset available for training.")
             return
 
-        test_data = None
+        self.test_data = None
 
         # Sort the dataset chronologically.
         data.sort_index(inplace=True)
@@ -107,11 +109,7 @@ class LearningModel():
                 _logger.warning("Insufficient data to train with. Ignoring testing.")
                 latest_datestamp = data.index.max()
             else:
-                test_data = data.loc[train_test_cutoff:]
-                x_test = test_data[self.datecolumns]
-                _logger.debug(f"X test data size: {x_test.shape}")
-                y_test = test_data.drop(self.datecolumns, 1)
-                _logger.debug(f"Y test data size: {y_test.shape}")
+                self.test_data = data.loc[train_test_cutoff:]
         else:
             latest_datestamp = data.index.max()
         _logger.debug(f"Preparing to train model on data between {date.fromtimestamp(earliest_datestamp)} and "
@@ -133,8 +131,6 @@ class LearningModel():
         # Scale y(s)
         self.predictor.scaler.fit(y_train)
         y_train = self.predictor.scaler.transform(y_train)
-        if test_data is not None:
-            y_test = self.predictor.scaler.transform(y_test)
 
         try:
             if model_type == "mlp":
@@ -152,9 +148,6 @@ class LearningModel():
         if self.predictor.model is not None:
             _logger.debug("Model trained.")
 
-            # TODO: Implement
-            accuracy = None
-
             # If persist location is given, save the model out to a file
             if persist_location is not None:
                 try:
@@ -167,8 +160,8 @@ class LearningModel():
                     _logger.error(ex)
                     return
 
-            if test_data is not None:
-                _logger.info(f"Score: {self.predictor.model.score(x_test, y_test)}")
+            if self.test_data is not None:
+                self.test_model()
         else:
             _logger.error("Problem training model.")
         return
@@ -188,16 +181,13 @@ class LearningModel():
         except Exception as ex:
             _logger.error(ex)
 
-    def get_predictions(self, stock : str, prediction_period='NEXTMONTH'):
+    def get_predictions(self, prediction_period='NEXTMONTH'):
         """
-        Get predictions for a given stock for a given period.
-        :param stock:
+        Get predictions for a given period.
         :param prediction_period:
         :return:
         """
-        if not isinstance(stock, str):
-            raise TypeError("Stock must be a string of a stock symbol: I.E. GOOG")
-        elif prediction_period not in self.periods:
+        if prediction_period not in self.periods:
             _logger.error(f"Prediction period '{prediction_period}' not recognised. Must be one of: {[*self.periods]}")
             return
         elif self.predictor is None or self.predictor.model is None:
@@ -210,7 +200,7 @@ class LearningModel():
         # Get prediction datestamps
         prediction_start = self.data.index.max() - self.periods[prediction_period]
         prediction_end = self.data.index.max() + self.periods[prediction_period]
-        _logger.info(f"Predicting close price of {stock} between {date.fromtimestamp(prediction_start)} and "
+        _logger.info(f"Predicting market between {date.fromtimestamp(prediction_start)} and "
                       f"{date.fromtimestamp(prediction_end)}")
 
         dates = [i for i in range(prediction_start, prediction_end, 86400)]
@@ -222,7 +212,7 @@ class LearningModel():
             predictions = self.predictor.scaler.inverse_transform(predictions)
         _logger.debug(f"Predictions:\n{predictions}")
 
-        return pd.DataFrame(data=predictions, index=dates, columns=self.data.columns[:-6])[f"{stock}_close"]
+        return pd.DataFrame(data=predictions, index=dates, columns=self.data.columns[:-6])
 
     def get_value(self, stock: str, prediction_date: date):
         _logger.debug(f"Getting value of stock {stock} on date {prediction_date}.")
@@ -459,6 +449,34 @@ class LearningModel():
             _logger.error("Dataset is not a dataframe. Please use `set_data()` to recreate the dataframe.")
             return False
         return True
+
+    def test_model(self):
+        if self.predictor is None or self.predictor.model is None:
+            _logger.warning("No model to test.")
+
+        if self.test_data is not None:
+            x_test = self.test_data[self.datecolumns]
+            _logger.debug(f"X test data size: {x_test.shape}")
+            y_test = self.test_data.drop(self.datecolumns, 1)
+            _logger.debug(f"Y test data size: {y_test.shape}")
+
+            columns = y_test.columns
+            dates = y_test.index
+
+            if self.predictor.scaler is not None:
+                y_test = self.predictor.scaler.transform(y_test)
+
+
+            y_prediction = self.predictor.model.predict(x_test)
+
+
+            mse = mean_squared_error(y_test, y_prediction, multioutput='raw_values')
+            mae = mean_absolute_error(y_test, y_prediction, multioutput='raw_values')
+            evs = explained_variance_score(y_test, y_prediction, multioutput='raw_values')
+            r2 = r2_score(y_test, y_prediction, multioutput='raw_values')
+
+            _logger.info(f"Test Scores:\nMSE: {mse}\nMAE: {mae}\nEVS: {evs},\nR2: {r2}")
+            return pd.DataFrame(data=[mse, mae, evs, r2], columns=columns, index=["MSE", "MAE", "EVS", "R2"])
 
     # def calculate_return(self, investments : list):
     #     if self.predictor is None:

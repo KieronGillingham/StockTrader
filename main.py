@@ -487,13 +487,17 @@ class MainWindow(QMainWindow):
         predictions = None
         if learning_model.predictor is not None:
             if learning_model.predictor.model is not None:
-                predictions = learning_model.get_predictions(stocksymbol)
+                predictions = learning_model.get_predictions()[f"{stocksymbol}_close"]
 
         approximations = None
         if self.show_approx_checkbox.isChecked():
             approximations = learning_model.get_approximation(stocksymbol)
 
         self.draw_chart(stocksymbol, predictions, approximations)
+
+        model_evaluation = learning_model.test_model()
+        if model_evaluation is not None:
+            _logger.debug(model_evaluation[f"{stocksymbol}_close"])
 
     # Model training
     def train_model(self, location=None, type=None, testingrange=None):
