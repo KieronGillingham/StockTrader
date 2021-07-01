@@ -189,33 +189,38 @@ class LearningModel():
             _logger.error(ex)
 
     def get_predictions(self, stock : str, prediction_period='NEXTMONTH'):
-
-        _logger.debug(f"Loaded data shape: {self.data.shape}")
-
+        """
+        Get predictions for a given stock for a given period.
+        :param stock:
+        :param prediction_period:
+        :return:
+        """
         if not isinstance(stock, str):
             raise TypeError("Stock must be a string of a stock symbol: I.E. GOOG")
         elif prediction_period not in self.periods:
             _logger.error(f"Prediction period '{prediction_period}' not recognised. Must be one of: {[*self.periods]}")
             return
+        elif self.predictor is None or self.predictor.model is None:
+            _logger.error("No prediction model loaded.")
+            return
         elif not self._check_data():
             _logger.error("Error with prediction model.")
             return
 
-        latest_date_stamp = self.data.index.max()
-        prediction_date_stamp = latest_date_stamp + self.periods[prediction_period]
-        _logger.debug(f"Latest date: {latest_date_stamp} / {date.fromtimestamp(latest_date_stamp)}")
-        _logger.debug(f"Prediction date ({prediction_period}): {prediction_date_stamp} / {date.fromtimestamp(prediction_date_stamp)}")
+        # Get prediction datestamps
+        prediction_start = self.data.index.max() - self.periods[prediction_period]
+        prediction_end = self.data.index.max() + self.periods[prediction_period]
+        _logger.info(f"Predicting close price of {stock} between {date.fromtimestamp(prediction_start)} and "
+                      f"{date.fromtimestamp(prediction_end)}")
 
-        prediction_date_stamp = latest_date_stamp
-        latest_date_stamp = prediction_date_stamp - self.periods[prediction_period]
-        if self.predictor.model is None:
-            self.train_mlp_model()
-        dates = [(latest_date_stamp + (i * 86400)) for i in range(0, 35)]
+        dates = [i for i in range(prediction_start, prediction_end, 86400)]
+
         predictions = self.predictor.model.predict(self.deconstruct_date(dates))
+
         if self.predictor.scaler is not None:
             _logger.info("Unscaling prediction values.")
             predictions = self.predictor.scaler.inverse_transform(predictions)
-        print(predictions)
+        _logger.debug(f"Predictions:\n{predictions}")
 
         return pd.DataFrame(data=predictions, index=dates, columns=self.data.columns[:-6])[f"{stock}_close"]
 
