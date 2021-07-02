@@ -116,6 +116,7 @@ class MainWindow(QMainWindow):
         # Initalise layouts
         hbox_title = QHBoxLayout()
         hbox_main = QHBoxLayout()
+        vbox_chart = QVBoxLayout()
         vbox_sidebar = QVBoxLayout()
         vbox_chartmenu = QVBoxLayout()
         vbox_prediction = QVBoxLayout()
@@ -209,11 +210,14 @@ class MainWindow(QMainWindow):
 
         # Main chart
         self.mainChart = MplCanvas(self)
-        hbox_main.addWidget(self.mainChart, 5)
+        vbox_chart.addWidget(self.mainChart, 8)
+        self.status_label = QLabel()
+        vbox_chart.addWidget(self.status_label, 1)
 
         # Set layout hierarchy
         vbox_pagechart.addLayout(hbox_title, 1)
         vbox_pagechart.addLayout(hbox_main, 5)
+        hbox_main.addLayout(vbox_chart, 5)
         hbox_main.addLayout(vbox_sidebar, 1)
         vbox_sidebar.addLayout(vbox_chartmenu, 1)
         vbox_sidebar.addLayout(vbox_prediction, 2)
@@ -403,10 +407,12 @@ class MainWindow(QMainWindow):
             start_date = start_date.toPyDate()
         if isinstance(end_date, QDate):
             end_date = end_date.toPyDate()
+        self.status_label.setText("Loading...")
         self.thread(stock_data.load_data_from_yahoo_finance, start_date=start_date, end_date=end_date,
                     time_interval=time_interval, stocksymbols=stocksymbols, on_finish=self.data_loaded)
 
     def load_data_from_file(self, start_date=None, end_date=None):
+        self.status_label.setText("Loading...")
         self.thread(stock_data.load_from_csv, on_finish=self.data_loaded)
 
     def data_loaded(self):
@@ -441,6 +447,7 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.cla()
         self.mainChart.axes.axis('off')
         self.mainChart.draw()
+        self.status_label.setText("")
 
     def draw_chart(self, stocksymbol, prediction=None, approximation=None):
 
@@ -487,6 +494,7 @@ class MainWindow(QMainWindow):
         predictions = None
         if learning_model.predictor is not None:
             if learning_model.predictor.model is not None:
+                #TODO: Reduce calls to get_predictions and check return value if stock not found
                 predictions = learning_model.get_predictions()[f"{stocksymbol}_close"]
 
         approximations = None
@@ -495,10 +503,15 @@ class MainWindow(QMainWindow):
 
         self.draw_chart(stocksymbol, predictions, approximations)
 
-        model_evaluation = learning_model.test_model()
-        if model_evaluation is not None:
-            _logger.debug(model_evaluation[f"{stocksymbol}_close"])
-
+        test_scores = learning_model.test_scores
+        if test_scores is not None:
+            model_evaluation = test_scores[f"{stocksymbol}_close"]
+            score_string = f"Mean Squared Error: {model_evaluation.loc['MSE']:.3f}\n" \
+                           f"Mean Absolute Error: {model_evaluation.loc['MAE']:.3f}\n" \
+                           f"Explained Variance Score: {model_evaluation.loc['EVS']:.2f}\n" \
+                           f"R2 Score: {model_evaluation.loc['R2']:.2f}"
+            _logger.info(score_string)
+            self.status_label.setText(score_string)
     # Model training
     def train_model(self, location=None, type=None, testingrange=None):
 
@@ -510,8 +523,7 @@ class MainWindow(QMainWindow):
 
         if learning_model is not None:
             self.clear_chart()
-            self.mainChart.axes.text(0,0,"Loading...")
-            self.mainChart.draw()
+            self.status_label.setText("Loading...")
 
             train_test_cutoff = None
             if testingrange is not None:

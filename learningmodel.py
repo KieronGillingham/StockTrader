@@ -44,6 +44,7 @@ class LearningModel():
     # Data to train models with
     data = None
     test_data = None
+    test_scores = None
 
     # Current trained predictor
     predictor = None
@@ -466,9 +467,7 @@ class LearningModel():
             if self.predictor.scaler is not None:
                 y_test = self.predictor.scaler.transform(y_test)
 
-
             y_prediction = self.predictor.model.predict(x_test)
-
 
             mse = mean_squared_error(y_test, y_prediction, multioutput='raw_values')
             mae = mean_absolute_error(y_test, y_prediction, multioutput='raw_values')
@@ -476,7 +475,7 @@ class LearningModel():
             r2 = r2_score(y_test, y_prediction, multioutput='raw_values')
 
             _logger.info(f"Test Scores:\nMSE: {mse}\nMAE: {mae}\nEVS: {evs},\nR2: {r2}")
-            return pd.DataFrame(data=[mse, mae, evs, r2], columns=columns, index=["MSE", "MAE", "EVS", "R2"])
+            self.test_scores = pd.DataFrame(data=[mse, mae, evs, r2], columns=columns, index=["MSE", "MAE", "EVS", "R2"])
 
     # def calculate_return(self, investments : list):
     #     if self.predictor is None:
