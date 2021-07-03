@@ -162,6 +162,7 @@ class StockData:
 
     def fill_missing_data(self, data=None):
         if data is not None:
+            data.replace([np.inf, -np.inf], np.nan, inplace=True)
             empty_data = data[data.isna().any(axis=1)]
             missing_rows = len(empty_data.index)
             if missing_rows > 0:
