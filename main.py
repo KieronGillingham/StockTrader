@@ -454,15 +454,16 @@ class MainWindow(QMainWindow):
         colours = ['b', 'y', 'g']
         self.clear_chart()
 
-
         if stocksymbol + "_close" not in stock_data.data.columns:
             self.mainChart.axes.text(0,0,"No data available.")
             self.mainChart.draw()
             return
 
-        data = stock_data.data.filter(like=stocksymbol + "_close")
+        data = stock_data.data[stocksymbol + "_close"]
 
         self.mainChart.axes.plot(data, color=colours[0])
+        self.mainChart.axes.set_title(stocksymbol)
+        self.mainChart.axes.set_ylabel("Close Price (£)", rotation="vertical")
 
         legend = ["Past values"]
         self.mainChart.axes.axis('on')

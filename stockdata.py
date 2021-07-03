@@ -76,46 +76,43 @@ class StockData:
         except FileNotFoundError as ex:
             _logger.error(f"Symbol file '{symbol_csv}' not found: {ex}")
 
-        self.stocknames = list(self.stockdict.keys())
-
     def load_data_from_yahoo_finance(self, progress_callback=None, start_date=None, end_date=None, stocksymbols=None, time_interval='monthly'):
-        _logger.debug("Load data from yahoo finance")
+        _logger.debug(f"Loading {time_interval} data from Yahoo Finance between {start_date} and {end_date}.")
+
+        # If no stock symbols are specified
         if stocksymbols == None:
-            stocks = self.stockdict
-            self.stocknames = list(stocks.keys())
-            stocksymbols = list(stocks.values())
+            # Get all stock symbols
+            stocksymbols = list(self.stockdict.values())
 
-        _logger.debug(f"Stockdict: {stocks}")
-        _logger.debug(f"Selected Stocks: {self.stocknames}, {stocksymbols}")
-        _logger.debug(f"{start_date}, {end_date}, {time_interval}")
-
+        # Clear any loaded data
         self.data = None
 
-        for i in range(0,1):
+        for symbol in stocksymbols:
             try:
-                symbol = stocksymbols[i]
-                _logger.debug(symbol)
                 yahoo_financials = YahooFinancials(symbol)
                 data = yahoo_financials.get_historical_price_data(start_date=str(start_date),
                                                                   end_date=str(end_date),
                                                                   time_interval=time_interval)
-                _logger.debug(data)
                 stock_data = data[symbol] # Get stock data using the symbol for that stock
                 prices = stock_data['prices'] # Get price data for given stock
 
                 # Format price dict into dataframe
                 df = pd.DataFrame.from_records(prices, index='date', exclude=['formatted_date'])
 
+                # Seven day moving average
                 df = self.fill_missing_data(df)
                 df["7avgclose"] = df["close"].rolling(7).mean()
                 df['7avgclose'] = df["7avgclose"].fillna(method='bfill')
 
+                # Stochastic K%
                 df['k'] = (df["close"] - df["low"]) / (df["high"] - df["low"])
                 df['k'] = df["k"].fillna(value=0)
 
+                # Differencing
                 df["diff"] = df["close"].diff()
                 df['diff'] = df["diff"].fillna(value=0)
 
+                # Momentum
                 shift = df["close"].shift(periods=1)
                 df["mom"] = df["close"] / shift
                 df["mom"].iat[0] = 1
@@ -129,7 +126,7 @@ class StockData:
                 else:
                     self.data = pd.concat([self.data, df], axis=1)
             except Exception as ex:
-                _logger.error(f"Exception on loop {i}: {ex}")
+                _logger.error(f"Exception getting {symbol} data: {ex}")
 
         print(self.data.shape)
         self.data = self.fill_missing_data(self.data)
