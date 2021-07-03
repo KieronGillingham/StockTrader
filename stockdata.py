@@ -91,7 +91,7 @@ class StockData:
 
         self.data = None
 
-        for i in range(0,30):
+        for i in range(0,1):
             try:
                 symbol = stocksymbols[i]
                 _logger.debug(symbol)
@@ -103,10 +103,26 @@ class StockData:
                 stock_data = data[symbol] # Get stock data using the symbol for that stock
                 prices = stock_data['prices'] # Get price data for given stock
 
-                # Format price dict into dataframe with column headings: '[symbol]_[field]'
+                # Format price dict into dataframe
                 df = pd.DataFrame.from_records(prices, index='date', exclude=['formatted_date'])
-                df.columns = (symbol + "_" + field for field in df.columns)
-                print(df)
+
+                df = self.fill_missing_data(df)
+                df["7avgclose"] = df["close"].rolling(7).mean()
+                df['7avgclose'] = df["7avgclose"].fillna(method='bfill')
+
+                df['k'] = (df["close"] - df["low"]) / (df["high"] - df["low"])
+                df['k'] = df["k"].fillna(value=0)
+
+                df["diff"] = df["close"].diff()
+                df['diff'] = df["diff"].fillna(value=0)
+
+                shift = df["close"].shift(periods=1)
+                df["mom"] = df["close"] / shift
+                df["mom"].iat[0] = 1
+
+                # Add column headings: '[symbol]_[field]'
+                df.columns = [symbol + "_" + field for field in df.columns]
+
                 # Create or join to master dataframe
                 if self.data is None:
                     self.data = df
@@ -116,7 +132,7 @@ class StockData:
                 _logger.error(f"Exception on loop {i}: {ex}")
 
         print(self.data.shape)
-        self.fill_missing_data()
+        self.data = self.fill_missing_data(self.data)
 
         return "Done."
 
@@ -147,13 +163,15 @@ class StockData:
                 if save:
                     plt.savefig("data/fig.png")
 
-    def fill_missing_data(self):
-        empty_data = self.data[self.data.isna().any(axis=1)]
-        missing_rows = len(empty_data.index)
-        if missing_rows > 0:
-            _logger.warning(f"{missing_rows} rows missing. Rolling values forward.")
-            self.data = self.data.fillna(method="ffill", axis=0) # Roll values foward
-            self.data = self.data.fillna(method="bfill", axis=0) # Roll values backwards in case first element(s) NaN
-            self.data = self.data.fillna(value=0, axis=0) # Fill 0 in case any column is entirely NaN
-        else:
-            _logger.debug("No data missing.")
+    def fill_missing_data(self, data=None):
+        if data is not None:
+            empty_data = data[data.isna().any(axis=1)]
+            missing_rows = len(empty_data.index)
+            if missing_rows > 0:
+                _logger.warning(f"{missing_rows} rows missing. Rolling values forward.")
+                data = data.fillna(method="ffill", axis=0) # Roll values foward
+                data = data.fillna(method="bfill", axis=0) # Roll values backwards in case first element(s) NaN
+                data = data.fillna(value=0, axis=0) # Fill 0 in case any column is entirely NaN
+            else:
+                _logger.debug("No data missing.")
+        return data
