@@ -454,9 +454,16 @@ class MainWindow(QMainWindow):
         colours = ['b', 'y', 'g']
         self.clear_chart()
 
+
+        if stocksymbol + "_close" not in stock_data.data.columns:
+            self.mainChart.axes.text(0,0,"No data available.")
+            self.mainChart.draw()
+            return
+
         data = stock_data.data.filter(like=stocksymbol + "_close")
 
         self.mainChart.axes.plot(data, color=colours[0])
+
         legend = ["Past values"]
         self.mainChart.axes.axis('on')
         if prediction is not None:
@@ -495,7 +502,22 @@ class MainWindow(QMainWindow):
         if learning_model.predictor is not None:
             if learning_model.predictor.model is not None:
                 #TODO: Reduce calls to get_predictions and check return value if stock not found
-                predictions = learning_model.get_predictions()[f"{stocksymbol}_close"]
+                predictions = learning_model.get_predictions()
+                if f"{stocksymbol}_close" in predictions.columns:
+                    predictions = predictions[f"{stocksymbol}_close"]
+                else:
+                    _logger.error("No predictions found.")
+                    predictions = None
+
+                test_scores = learning_model.test_scores
+                if test_scores is not None:
+                    model_evaluation = test_scores[f"{stocksymbol}_close"]
+                    score_string = f"Mean Squared Error: {model_evaluation.loc['MSE']:.3f}\n" \
+                                   f"Mean Absolute Error: {model_evaluation.loc['MAE']:.3f}\n" \
+                                   f"Explained Variance Score: {model_evaluation.loc['EVS']:.2f}\n" \
+                                   f"R2 Score: {model_evaluation.loc['R2']:.2f}"
+                    _logger.info(score_string)
+                    self.status_label.setText(score_string)
 
         approximations = None
         if self.show_approx_checkbox.isChecked():
@@ -503,15 +525,8 @@ class MainWindow(QMainWindow):
 
         self.draw_chart(stocksymbol, predictions, approximations)
 
-        test_scores = learning_model.test_scores
-        if test_scores is not None:
-            model_evaluation = test_scores[f"{stocksymbol}_close"]
-            score_string = f"Mean Squared Error: {model_evaluation.loc['MSE']:.3f}\n" \
-                           f"Mean Absolute Error: {model_evaluation.loc['MAE']:.3f}\n" \
-                           f"Explained Variance Score: {model_evaluation.loc['EVS']:.2f}\n" \
-                           f"R2 Score: {model_evaluation.loc['R2']:.2f}"
-            _logger.info(score_string)
-            self.status_label.setText(score_string)
+
+
     # Model training
     def train_model(self, location=None, type=None, testingrange=None):
 
@@ -527,7 +542,9 @@ class MainWindow(QMainWindow):
 
             train_test_cutoff = None
             if testingrange is not None:
-                train_test_cutoff_date = date.today() - timedelta(days=testingrange)
+                end_date = self.data_end_date.date()
+                end_date = end_date.toPyDate()
+                train_test_cutoff_date = end_date - timedelta(days=testingrange)
                 train_test_cutoff = calendar.timegm(train_test_cutoff_date.timetuple())
             self.thread(function=learning_model.train_model, train_test_cutoff=train_test_cutoff, model_type=type, on_finish=self.model_ready, persist_location=f"data/{location}")
         else:
@@ -538,7 +555,6 @@ class MainWindow(QMainWindow):
         if learning_model.predictor is not None:
             if learning_model.predictor.model is not None:
                 _logger.info("Model loaded.")
-            #self.draw_single_stock()
         stocksymbol = self.filter_combobox.currentData()
         if stocksymbol is not None:
             self.show_stock(stocksymbol)

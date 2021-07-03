@@ -75,7 +75,7 @@ class LearningModel():
         else:
             return False
 
-    def train_model(self, model_type="mlp", persist_location=None, data=None, train_test_cutoff=None, *args, **kwargs):
+    def train_model(self, model_type="randfor", persist_location=None, data=None, train_test_cutoff=None, *args, **kwargs):
         """
         Train a machine learning model to forecast stock prices.
         :param data: The dataset to be used for training.
@@ -462,12 +462,13 @@ class LearningModel():
             _logger.debug(f"Y test data size: {y_test.shape}")
 
             columns = y_test.columns
-            dates = y_test.index
 
             if self.predictor.scaler is not None:
                 y_test = self.predictor.scaler.transform(y_test)
 
             y_prediction = self.predictor.model.predict(x_test)
+
+            print(y_test, y_prediction)
 
             mse = mean_squared_error(y_test, y_prediction, multioutput='raw_values')
             mae = mean_absolute_error(y_test, y_prediction, multioutput='raw_values')
@@ -507,12 +508,14 @@ class LearningModel():
     #     return total
 
     def get_approximation(self, stock):
-        earliest_date = self.data.index.min()
-        latest_date = self.data.index.max()
-        mean = self.data[f"{stock}_close"].mean()
-        approx = pd.DataFrame([mean, mean], index=[earliest_date, latest_date])
-        print(approx)
-        return approx
+        if self.data is not None and f"{stock}_close" in self.data.columns:
+            earliest_date = self.data.index.min()
+            latest_date = self.data.index.max()
+            mean = self.data[f"{stock}_close"].mean()
+            approx = pd.DataFrame([mean, mean], index=[earliest_date, latest_date])
+            return approx
+        else:
+            return
 
 class Predictor:
 
