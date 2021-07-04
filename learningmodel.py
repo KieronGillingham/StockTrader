@@ -1,5 +1,6 @@
 # Logging
 import logging
+import time
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
@@ -81,6 +82,8 @@ class LearningModel():
         :param data: The dataset to be used for training.
         :return: None.
         """
+        start = time.time()
+
         if model_type not in self.models.values():
             _logger.error(f"Model type '{model_type}' not recognised.")
             return
@@ -147,24 +150,19 @@ class LearningModel():
             return
 
         if self.predictor.model is not None:
-            _logger.debug("Model trained.")
+            end = time.time()
+            _logger.info(f"Model trained. Training time: {end - start} seconds.")
 
             # If persist location is given, save the model out to a file
             if persist_location is not None:
-                try:
-                    self.predictor.save(location=persist_location)
-                    _logger.info(f"Model persisted to {persist_location}.")
-                except FileNotFoundError as ex:
-                    _logger.error(f"Persist location for model could not be found: {ex}")
-                    return
-                except Exception as ex:
-                    _logger.error(ex)
-                    return
+                self.predictor.save(location=persist_location)
 
             if self.test_data is not None:
                 self.test_model()
         else:
             _logger.error("Problem training model.")
+
+
         return
 
     def load_predictor(self, predictor_location):
@@ -477,6 +475,15 @@ class LearningModel():
 
             _logger.info(f"Test Scores:\nMSE: {mse}\nMAE: {mae}\nEVS: {evs},\nR2: {r2}")
             self.test_scores = pd.DataFrame(data=[mse, mae, evs, r2], columns=columns, index=["MSE", "MAE", "EVS", "R2"])
+
+            mse = mean_squared_error(y_test, y_prediction)
+            mae = mean_absolute_error(y_test, y_prediction)
+            evs = explained_variance_score(y_test, y_prediction)
+            r2 = r2_score(y_test, y_prediction)
+
+            _logger.info(f"Overall Test Scores:\nMSE: {mse}\nMAE: {mae}\nEVS: {evs},\nR2: {r2}")
+
+            self.test_scores["Overall"] = [mse, mae, evs, r2]
 
     # def calculate_return(self, investments : list):
     #     if self.predictor is None:

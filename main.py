@@ -1,5 +1,8 @@
 # Logging
 import logging
+
+from PyQt5.QtGui import QFont
+
 _logger = logging.getLogger(__name__)
 log_template = "[%(asctime)s] %(levelname)s %(threadName)s %(name)s: %(message)s"
 logging.basicConfig(level=logging.DEBUG, format=log_template, handlers= [logging.FileHandler("debug.log"), logging.StreamHandler()])
@@ -8,13 +11,15 @@ logging.basicConfig(level=logging.DEBUG, format=log_template, handlers= [logging
 import sys
 import calendar
 from datetime import date, timedelta
-from typing import List
+
+# Table display
+from tabulate import tabulate
 
 # PyQt
 from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QHBoxLayout, QPushButton, QWidget, QSpinBox, \
     QComboBox, QStackedWidget, QGroupBox, QFormLayout, QLineEdit, QTabWidget, QMessageBox, QBoxLayout, QDateEdit, \
     QCheckBox
-from PyQt5.QtCore import QTimer, QThreadPool, QDateTime, QDate, pyqtSignal
+from PyQt5.QtCore import QThreadPool, QDate, pyqtSignal, Qt
 
 # Threading
 from pyqtthreading import Worker
@@ -212,6 +217,8 @@ class MainWindow(QMainWindow):
         self.mainChart = MplCanvas(self)
         vbox_chart.addWidget(self.mainChart, 8)
         self.status_label = QLabel()
+        self.status_label.setFont(QFont('Consolas', 10))
+        #self.status_label.setAlignment(Qt.AlignCenter)
         vbox_chart.addWidget(self.status_label, 1)
 
         # Set layout hierarchy
@@ -418,6 +425,7 @@ class MainWindow(QMainWindow):
     def data_loaded(self):
         _logger.debug("Data loaded")
         self.clear_chart()
+        self.status_label.setText("")
         self.filter_combobox.clear()
         self.filter_combobox.setEnabled(False)
         data = stock_data.data
@@ -447,7 +455,6 @@ class MainWindow(QMainWindow):
         self.mainChart.axes.cla()
         self.mainChart.axes.axis('off')
         self.mainChart.draw()
-        self.status_label.setText("")
 
     def draw_chart(self, stocksymbol, prediction=None, approximation=None):
 
@@ -512,11 +519,19 @@ class MainWindow(QMainWindow):
 
                 test_scores = learning_model.test_scores
                 if test_scores is not None:
-                    model_evaluation = test_scores[f"{stocksymbol}_close"]
-                    score_string = f"Mean Squared Error: {model_evaluation.loc['MSE']:.3f}\n" \
-                                   f"Mean Absolute Error: {model_evaluation.loc['MAE']:.3f}\n" \
-                                   f"Explained Variance Score: {model_evaluation.loc['EVS']:.2f}\n" \
-                                   f"R2 Score: {model_evaluation.loc['R2']:.2f}"
+
+                    stock_eval = test_scores[f"{stocksymbol}_close"]
+                    model_eval = test_scores["Overall"]
+
+                    testresults = [
+                        ["Mean Squared Error", f"{stock_eval.loc['MSE']:.3f}", f"{model_eval.loc['MSE']:.3f}"],
+                        ["Mean Absolute Error", f"{stock_eval.loc['MAE']:.3f}", f"{model_eval.loc['MAE']:.3f}"],
+                        ["Explained Variance Score", f"{stock_eval.loc['EVS']:.2f}", f"{model_eval.loc['EVS']:.2f}"],
+                        ["R2 Score", f"{stock_eval.loc['R2']:.2f}", f"{model_eval.loc['R2']:.2f}"]
+                    ]
+
+                    score_string = tabulate(testresults, headers=["Test Results", "Current Stock", "Overall"])
+
                     _logger.info(score_string)
                     self.status_label.setText(score_string)
 
@@ -553,9 +568,11 @@ class MainWindow(QMainWindow):
 
     def model_ready(self):
         self.clear_chart()
+        self.status_label.setText("")
         if learning_model.predictor is not None:
             if learning_model.predictor.model is not None:
                 _logger.info("Model loaded.")
+
         stocksymbol = self.filter_combobox.currentData()
         if stocksymbol is not None:
             self.show_stock(stocksymbol)
@@ -872,19 +889,6 @@ class QTransaction(QWidget):
         """
         for n in symbols:
             self.combobox.addItem(n, userData=symbols[n])
-
-    # def thread_complete(self):
-    #     print("THREAD COMPLETE!")
-
-    # def reloadData(self):
-    #     # Pass the function to execute
-    #     worker = Worker(self.load_from_yahoo_finance) # Any other args, kwargs are passed to the run function
-    #     worker.signals.result.connect(self.print_output)
-    #     worker.signals.finished.connect(self.data_loaded)
-    #     worker.signals.progress.connect(self.progress_fn)
-    #
-    #     # Execute
-    #     self.threadpool.start(worker)
 
 class MplCanvas(FigureCanvasQTAgg):
     """PyQt canvas for MatPlotLib graphs"""
