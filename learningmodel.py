@@ -46,6 +46,7 @@ class LearningModel():
     data = None
     test_data = None
     test_scores = None
+    last_model_train_time = None
 
     # Current trained predictor
     predictor = None
@@ -109,6 +110,7 @@ class LearningModel():
         earliest_datestamp = data.index.min()
         if train_test_cutoff is not None:
             latest_datestamp = train_test_cutoff
+            self.predictor.test_data_cutoff = train_test_cutoff
             if latest_datestamp <= earliest_datestamp:
                 _logger.warning("Insufficient data to train with. Ignoring testing.")
                 latest_datestamp = data.index.max()
@@ -151,7 +153,8 @@ class LearningModel():
 
         if self.predictor.model is not None:
             end = time.time()
-            _logger.info(f"Model trained. Training time: {end - start} seconds.")
+            self.last_model_train_time = end - start
+            _logger.info(f"Model trained. Training time: {self.last_model_train_time} seconds.")
 
             # If persist location is given, save the model out to a file
             if persist_location is not None:
@@ -173,6 +176,8 @@ class LearningModel():
                     _logger.info(f"Model loaded: {self.predictor.model}")
                 if self.predictor.scaler is not None:
                     _logger.info(f"Scaler loaded: {self.predictor.scaler}")
+
+                self.test_data = self.data.loc[self.predictor.test_data_cutoff:]
             else:
                 raise Exception("Predictor could not be loaded.")
         except FileNotFoundError as ex:
@@ -209,7 +214,6 @@ class LearningModel():
         if self.predictor.scaler is not None:
             _logger.info("Unscaling prediction values.")
             predictions = self.predictor.scaler.inverse_transform(predictions)
-        _logger.debug(f"Predictions:\n{predictions}")
 
         return pd.DataFrame(data=predictions, index=dates, columns=self.data.columns[:-6])
 
@@ -241,7 +245,8 @@ class LearningModel():
             return np.interp(prediction_date_stamp, stock_data.index, stock_data.values)
         else:
             if self.predictor is None:
-                self.train_mlp_model()
+                _logger.warning("No model to forecast future value.")
+                return 0
             predictions = self.predictor.model.predict(self.deconstruct_date([prediction_date_stamp]))
             predictions = self.predictor.scaler.inverse_transform(predictions)
             print(predictions)
@@ -262,8 +267,7 @@ class LearningModel():
                 "random_state": [self.seed],
                 "n_estimators": [10, 20, 50, 100],
                 "criterion": ["mse"],
-                "max_depth": [1, 2, 5, 10, 20],
-                "verbose": [True]
+                "max_depth": [1, 2, 5, 10, 20]
             }
         ]
 
@@ -293,11 +297,9 @@ class LearningModel():
     #     pred_df = pd.DataFrame([self.data[f"{stock}_close"][latest_date_stamp],prediction[0]], columns=[f"{stock}_close"], index=[latest_date_stamp, prediction_date_stamp])
     #
     #     return pred_df
-    #
+
+    # TODO: Reimplement more efficient version
     # def naive_rolling_mlp_model_prediction(self, stock, prediction_date_stamp, latest_date_stamp=None):
-    #
-    #     print(latest_date_stamp)
-    #     print(prediction_date_stamp)
     #
     #     self.data.sort_index(inplace=True)
     #
@@ -388,7 +390,7 @@ class LearningModel():
                 {
                     "random_state": [self.seed],
                     "solver": ["lbfgs"],
-                    "alpha": 1.0 ** -np.arange(1, 5),
+                    "alpha": 10.0 ** -np.arange(0, 4),
                     "hidden_layer_sizes": [(5, 10), (20)],
                     "max_iter": [20]
                 }
@@ -397,17 +399,17 @@ class LearningModel():
             params = [
                 {
                     "random_state": [self.seed],
-                    "solver": ["lbfgs"],  # ["lbfgs", "adam"],
-                    "alpha": 1.0 ** -np.arange(1, 5),
-                    "hidden_layer_sizes": [(5, 10), (20), (10, 20), (40, 40), (50, 100), (100, 200), (200, 300), (20, 40, 20), (20, 50, 20), (50, 100, 50), (20, 40, 40, 20), (10, 20, 20, 10), (10, 20, 20, 20, 10)],
-                    "max_iter": [10, 20, 50, 100, 200, 500],  # 2000
+                    "solver": ["lbfgs"], # ["adam"]
+                    "alpha": 10.0 ** -np.arange(0, 4),
+                    "hidden_layer_sizes": [(5, 10), (20), (10, 20), (40, 40), (50, 100), (100, 200), (20, 40, 20), (50, 100, 50), (10, 20, 20, 20, 10)],
+                    "max_iter": [20, 50, 100, 200, 500],
                 }
             ]
 
         regressor = GridSearchCV(MLPRegressor(), params)
         regressor.fit(x, y)
 
-        print(regressor.best_params_)
+        _logger.info(f"Best parameters: {regressor.best_params_}")
 
         self.predictor.model = regressor
 
@@ -452,6 +454,7 @@ class LearningModel():
     def test_model(self):
         if self.predictor is None or self.predictor.model is None:
             _logger.warning("No model to test.")
+            return
 
         if self.test_data is not None:
             x_test = self.test_data[self.datecolumns]
@@ -473,7 +476,6 @@ class LearningModel():
             evs = explained_variance_score(y_test, y_prediction, multioutput='raw_values')
             r2 = r2_score(y_test, y_prediction, multioutput='raw_values')
 
-            _logger.info(f"Test Scores:\nMSE: {mse}\nMAE: {mae}\nEVS: {evs},\nR2: {r2}")
             self.test_scores = pd.DataFrame(data=[mse, mae, evs, r2], columns=columns, index=["MSE", "MAE", "EVS", "R2"])
 
             mse = mean_squared_error(y_test, y_prediction)
@@ -482,37 +484,8 @@ class LearningModel():
             r2 = r2_score(y_test, y_prediction)
 
             _logger.info(f"Overall Test Scores:\nMSE: {mse}\nMAE: {mae}\nEVS: {evs},\nR2: {r2}")
-
+            _logger.debug(f"{self.predictor.model.best_params_}\t{mse}\t{mae}\t{evs}\t{r2}\t{self.last_model_train_time}")
             self.test_scores["Overall"] = [mse, mae, evs, r2]
-
-    # def calculate_return(self, investments : list):
-    #     if self.predictor is None:
-    #         # Must create or load a predictor first
-    #         _logger.error("No predictor exists.")
-    #         return
-    #
-    #     if self.predictor.model is None:
-    #         # Must create or load model first
-    #         _logger.error("Predictor is missing a model.")
-    #         return
-    #
-    #     total = 0
-    #
-    #     for investment in investments:
-    #         if not isinstance(investment, tuple):
-    #             _logger.error(f"Investment format incorrect - Not a tuple: {investment}")
-    #             return
-    #         try:
-    #             (stock, count, transaction_date) = investment
-    #             print(investment)
-    #             result = self.get_value(stock, transaction_date) * count
-    #             print(f"{stock} investment returned: {result}.")
-    #             total += result
-    #
-    #         except Exception as ex:
-    #             _logger.error(ex)
-    #
-    #     return total
 
     def get_approximation(self, stock):
         if self.data is not None and f"{stock}_close" in self.data.columns:
@@ -529,6 +502,7 @@ class Predictor:
     model = None
     scaler = None
     location = None
+    test_data_cutoff = None
 
     def __init__(self, model=None, scaler=None, location=None):
         self.model = model
