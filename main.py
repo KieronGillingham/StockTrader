@@ -161,7 +161,7 @@ class MainWindow(QMainWindow):
         self.data_end_date.setDate(QDate.currentDate())
         self.data_end_date.setMaximumDate(QDate.currentDate())
         vbox_data.addWidget(self.data_end_date)
-        wid = QPushButton("Reload from Yahoo Finance")
+        wid = QPushButton("Load from Yahoo Finance")
         wid.released.connect(lambda: self.load_data_from_yahoo_finance(start_date=self.data_start_date.date(),
                                                                        end_date=self.data_end_date.date()))
         vbox_data.addWidget(wid)
@@ -324,7 +324,7 @@ class MainWindow(QMainWindow):
 
         self.forecast_tab_layout.addStretch()
 
-        self.forecast_result = QLabel("Calculation Result")
+        self.forecast_result = QLabel()
 
         self.forecast_tab_layout.addWidget(self.forecast_result)
 
@@ -339,12 +339,12 @@ class MainWindow(QMainWindow):
         # Profit field
         profit_spinbox = QSpinBox()
         profit_spinbox.setRange(0, INTINF)
-        formlayout.addRow(QLabel("Desired profit"), profit_spinbox)
+        formlayout.addRow(QLabel("Desired profit (£):"), profit_spinbox)
         # Timeframe field
         date_field = QDateEdit()
         date_field.setMinimumDate(QDate.currentDate())
         date_field.setCalendarPopup(True)
-        formlayout.addRow(QLabel("Timeframe"), date_field)
+        formlayout.addRow(QLabel("By:"), date_field)
         # Calculate button
         button = QPushButton("Calculate")
 
@@ -353,7 +353,7 @@ class MainWindow(QMainWindow):
         groupbox.setLayout(formlayout)
         suggest_tab_layout.addWidget(groupbox, 1)
 
-        resultlabel = QLabel("Calculation result")
+        resultlabel = QLabel()
         suggest_tab_layout.addWidget(resultlabel, 1)
         button.released.connect(lambda: resultlabel.setText(self.investment_plan(self.user["balance"], date_field.date(), desired_profit=profit_spinbox.value())))
 
@@ -716,13 +716,14 @@ class MainWindow(QMainWindow):
     def total_transactions(self):
         transactions = self.get_transactions()
         transaction_list = [t.total for t in transactions]
-        # Create list of tuples of format:
-        # (
-        #   Stock symbol,
-        #   Proposed number of shares purchased/sold,
-        #   Proposed date of the transaction
-        # )
-        self.forecast_result.setText(f"Total: £{'%.2f' % sum(transaction_list)}")
+
+        total = sum(transaction_list)
+        if total < 0:
+            result = f"Loss: £{'%.2f' % -total}"
+        else:
+            result = f"Profit: £{'%.2f' % total}"
+
+        self.forecast_result.setText(result)
 
     # Investments
     def investment_plan(self, starting_funds=0, end_date=date.today(), desired_profit=0):
@@ -742,7 +743,7 @@ class MainWindow(QMainWindow):
 
         # Check end_date is in the future
         if end_date <= day:
-            return f"Invalid end date: {end_date}"
+            return f"End date must be in the future."
 
         if learning_model.data is None:
             return "No data loaded."
@@ -761,7 +762,7 @@ class MainWindow(QMainWindow):
 
         # Check stocks are affordable
         if starting_funds < cheapest_stock:
-            return "Insufficient funds to begin investing."
+            return f"Insufficient funds to begin investing: £{'%.2f' % starting_funds}"
 
         current_funds = starting_funds
         stockreturn = []
@@ -786,11 +787,24 @@ class MainWindow(QMainWindow):
             current_funds = current_funds + bestdeal[4]
             day = day + timedelta(days=1)
 
-        result = ""
         _logger.debug(stockreturn)
 
-        for a in stockreturn:
-            result += f"{a[0]}: Buy {a[2]} stock(s) in {a[1]}. Sell next day for £{a[4]} profit.\n"
+        result = f"Starting with £{'%.2f' % starting_funds}:\n"
+        if len(stockreturn) < 1:
+            result = "No investment plan could be made."
+        else:
+            for a in stockreturn:
+                profit = f"£{'%.2f' % a[5]}"
+                cost = f"£{'%.2f' % (a[2] * a[3])}"
+                result += f"{a[0]}: Buy {int(a[2])} stock(s) in {a[1]} for {cost}. Sell next day for {profit} profit.\n"
+
+            total = sum([a[5] for a in stockreturn])
+
+            if total < desired_profit:
+                result += f"Closest investment plan found achieved £{'%.2f' % total} profit."
+            else:
+                result += f"Total profit: £{'%.2f' % total}"
+
         _logger.debug(result)
         return str(result)
 
@@ -866,10 +880,16 @@ class QTransaction(QWidget):
         prediction_date_stamp = calendar.timegm(transaction_date.timetuple())
         price = learning_model.get_value(stocksymbol, transaction_date)
         if price is not None:
-
-            self.sharesprice_label.setText(f"shares at £{'%.2f' % price} /share")
             self.total = price * value
-            self.total_label.setText(f"Total: £{'%.2f' % self.total}")
+            if value < 0:
+                transaction = f"Selling {-value} shares at £{'%.2f' % price} /share"
+                total = f"Return: £{'%.2f' % self.total}"
+            else:
+                transaction = f"Buying {value} shares at £{'%.2f' % price} /share"
+                total = f"Cost: £{'%.2f' % self.total}"
+
+            self.sharesprice_label.setText(transaction)
+            self.total_label.setText(total)
 
         # Send update signal to trigger a global update of the total.
         self.runupdate.emit()
