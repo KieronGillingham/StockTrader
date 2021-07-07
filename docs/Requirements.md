@@ -6,6 +6,7 @@
 - Anticipate stock/equity prices on a daily/weekly/monthly/quarterly basis and identify stocks/equities that are likely to succeed in the given timeframe
 - Able to answer “What if?” questions
 - State percentage accuracy of any predictions
+- Persist models
 - Display information graphically 
 - Display information in real-time
 - Standalone software
