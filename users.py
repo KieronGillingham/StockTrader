@@ -195,5 +195,5 @@ class UserManager:
         return {
             "username": "Guest",
             "password": None,
-            "balance": 0
+            "balance": 100
         }
