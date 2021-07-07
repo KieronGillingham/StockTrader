@@ -13,8 +13,15 @@ import numpy as np
 import os.path as path
 
 class TestStockData(TestCase):
+    """
+    Test StockData class
+    """
 
     def setUp(self):
+        """
+        Set up environment for tests.
+        :return:
+        """
         _logger.info("Setting up test.")
 
         self.test_tradedata_file = path.abspath("test_tradedata.csv")
@@ -40,6 +47,10 @@ class TestStockData(TestCase):
 
 
     def test_get_symbol(self):
+        """
+        Test get_symbol function.
+        :return:
+        """
         _logger.info("Testing get_symbol()")
         self.stock_data.load_symbols(symbol_csv=self.test_symbols_file)
 
@@ -48,6 +59,10 @@ class TestStockData(TestCase):
             self.assertEqual(self.stock_data.get_symbol(f"Equity{n}"), f"EQT.{n}")
 
     def test_load_stocks(self):
+        """
+        Test load_stocks function.
+        :return:
+        """
         _logger.info("Testing load_stocks()")
         self.stock_data.stockdict = None
         self.assertEqual(self.stock_data.stockdict, None)
@@ -56,7 +71,11 @@ class TestStockData(TestCase):
         self.assertNotEqual(self.stock_data.stockdict, None)
 
     def test_load_data_from_yahoo_finance(self):
-        self.fail()
+        """
+        Test load_data_from_yahoo_finance function. Test ignored to reduce API calls.
+        :return:
+        """
+        pass
 
     def test_get_yahoo_finance_data(self):
         self.fail()
