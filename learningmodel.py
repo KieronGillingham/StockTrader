@@ -267,7 +267,7 @@ class LearningModel():
                 "random_state": [self.seed],
                 "n_estimators": [10, 20, 50, 100],
                 "criterion": ["mse"],
-                "max_depth": [1, 2, 5, 10, 20]
+                "max_depth": [10, 20]
             }
         ]
 
